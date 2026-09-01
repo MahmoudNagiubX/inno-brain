@@ -1,0 +1,2281 @@
+# InnoBrain — Master Architecture & Implementation Plan
+
+> **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
+> **Version:** 1.2  
+> **Date:** 2026-09-01  
+> **Status:** Architecture baseline locked; provider/model winners remain benchmark-driven  
+> **Primary hardware:** Raspberry Pi 5 — 8 GB RAM  
+> **Audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308  
+> **Language target:** Egyptian Arabic FIRST. English is secondary. Arabic/English code-switching is supported only where it improves Egyptian usability.  
+> **Product target:** A low-latency, interruptible, context-aware Egyptian-Arabic event robot that feels conversational rather than like a voice FAQ kiosk.
+
+---
+
+# 0. Master Plan Rules
+
+This file is the project's permanent reference.
+
+Any major change to the following MUST update this file:
+
+- Architecture.
+- Provider/model selection.
+- RAG strategy.
+- Database schema.
+- Audio pipeline.
+- Memory model.
+- Robot integration contract.
+- Event package format.
+- Performance targets.
+- Repository structure.
+- Deployment strategy.
+- Major implementation dependency.
+
+The coding agent should read this file before large implementation tasks.
+
+Donor repositories are reference sources. Production code must not directly depend on random files inside cloned donor repositories unless that dependency is explicitly approved and documented here.
+
+
+## 0.1 Mandatory Change-Control Rule
+
+Until the coding agent takes ownership of documentation maintenance, ChatGPT is responsible for updating this Master Plan whenever an architecture, repository, provider, model, phase, data, audio, or implementation decision changes.
+
+After the coding agent takes ownership, the same rule remains: **architecture-changing work is incomplete until this Master Plan is updated.**
+
+## 0.2 Language Priority
+
+The MVP priority is:
+
+1. **Natural Egyptian Arabic conversation.**
+2. Egyptian Arabic with natural English technical/proper nouns when Egyptians commonly use them.
+3. English conversation is secondary and must not delay or complicate the Egyptian-Arabic MVP.
+
+All STT, TTS, turn-taking, persona, RAG and evaluation choices should therefore optimize Egyptian Arabic first.
+
+
+---
+
+# 1. Product Goal
+
+InnoBrain is the AI/voice brain of an event robot, with Egyptian Arabic as the primary conversational experience.
+
+The required experience is:
+
+1. Visitor approaches or starts speaking.
+2. Robot hears speech reliably in a noisy event environment.
+3. Robot understands Egyptian Arabic, English, and natural code-switching.
+4. Robot knows when the visitor has actually finished the thought.
+5. Robot retrieves current event/client knowledge.
+6. Robot answers quickly and naturally.
+7. Visitor can interrupt the robot while it is speaking.
+8. Robot stops, understands the interruption, and continues with context.
+9. Robot can display information or request safe robot actions.
+10. Event knowledge can be replaced for another event without rewriting the AI application.
+
+The system is NOT designed as:
+
+- A generic chatbot attached to a robot.
+- A PDF-only RAG demo.
+- A command-based voice interface.
+- A fully-local AI stack forced onto the Raspberry Pi regardless of latency.
+- A cloud-only system that becomes useless when connectivity degrades.
+
+---
+
+# 2. Locked Architecture Decisions
+
+The following decisions are accepted as the default architecture.
+
+| Area | Decision | Status |
+|---|---|---|
+| Edge hardware | Raspberry Pi 5 8 GB | LOCKED |
+| Main runtime | Python + Pipecat | LOCKED |
+| Audio device | Anker PowerConf S330 | LOCKED |
+| Conversation pipeline | Cascaded STT → LLM/RAG/Tools → TTS | LOCKED |
+| Turn detection | Silero VAD + Smart Turn v3 | LOCKED |
+| Interruptions | Full barge-in and cancellation | LOCKED |
+| Main LLM | Fast API during testing; local model is fallback | LOCKED |
+| Provider coupling | STT/LLM/TTS behind adapters | LOCKED |
+| Main DB | SQLite | LOCKED |
+| Keyword retrieval | SQLite FTS5 | LOCKED |
+| Vector search | sqlite-vec | LOCKED |
+| RAG | Core feature | LOCKED |
+| Retrieval | Hybrid lexical + dense vector | LOCKED |
+| Embeddings | Local multilingual embedding model initially | LOCKED |
+| Session memory | Local short-term memory | LOCKED |
+| Event configuration | Replaceable event package | LOCKED |
+| Robot control | LLM → semantic tools → RobotGateway → ROS | LOCKED |
+| Microservices | Avoid initially; one clean modular application | LOCKED |
+| Kubernetes | Not used on robot | LOCKED |
+
+Provider/model winners are intentionally NOT locked until benchmark results exist.
+
+---
+
+# 3. Final High-Level Architecture
+
+```text
+                           VISITOR
+                              │
+                              ▼
+                    ANKER POWERCONF S330
+                 4-mic 360° + speaker + DSP
+                              │
+                   hardware voice processing
+                              │
+                              ▼
+                     Raspberry Pi 5
+                              │
+                  ┌───────────┴────────────┐
+                  │     AUDIO RUNTIME      │
+                  │ capture / playback     │
+                  │ optional extra NS/AEC  │
+                  └───────────┬────────────┘
+                              │
+                              ▼
+                        Silero VAD
+                              │
+                              ▼
+                      Smart Turn v3
+                              │
+                              ▼
+                       Pipecat Runtime
+                state / streaming / barge-in
+                              │
+                              ▼
+                         STT Adapter
+                    local OR remote provider
+                              │
+                              ▼
+                  Conversation Orchestrator
+                   context + session memory
+                              │
+                              ▼
+                         Tool Router
+                ┌─────────────┼──────────────┐
+                │             │              │
+                ▼             ▼              ▼
+          Structured DB     Hybrid RAG     Robot/Screen
+             SQLite         FTS5+Vector       Gateway
+                │             │              │
+                └─────────────┼──────────────┘
+                              │
+                              ▼
+                           LLM
+                              │
+                              ▼
+                         TTS Adapter
+                              │
+                              ▼
+                    Anker S330 Speaker
+```
+
+---
+
+# 4. Raspberry Pi Role
+
+The Raspberry Pi is the REAL-TIME EDGE CONTROLLER.
+
+It should own:
+
+- USB audio I/O.
+- Voice runtime.
+- VAD.
+- turn detection.
+- interruption handling.
+- conversation state.
+- session memory.
+- RAG query execution.
+- SQLite event DB.
+- vector index querying.
+- local fallback LLM.
+- screen events.
+- RobotGateway.
+- health checks.
+- provider fallback logic.
+
+It should NOT be forced to run every heavyweight AI model simultaneously.
+
+Heavy ingestion, document parsing, mass embedding generation, large reranking and model training should normally happen before deployment on a laptop/server.
+
+---
+
+# 5. Audio Hardware — Anker PowerConf S330
+
+## 5.1 Confirmed device
+
+Model:
+
+`Anker PowerConf S330 — A3308`
+
+Official characteristics relevant to InnoBrain:
+
+- 4-microphone array.
+- 360-degree voice coverage.
+- advertised pickup range up to 3 meters.
+- 16 kHz microphone sample rate.
+- voice enhancement.
+- noise cancellation.
+- automatic gain control / voice balancing.
+- automatic echo cancellation.
+- full-duplex communication.
+- USB wired connection.
+- built-in speaker.
+
+Official sources:
+
+- https://ca.ankerwork.com/products/a3308
+- https://uk.ankerwork.com/products/a3308
+- https://service.ankerwork.com/article-description/PowerConf-S330-A3308-FAQ
+
+## 5.2 Important architecture consequence
+
+The S330 already performs audio processing.
+
+Therefore:
+
+**Do not enable aggressive software AEC + NS by default.**
+
+Initial path:
+
+```text
+S330 internal DSP
+      ↓
+USB PCM
+      ↓
+VAD / Smart Turn / STT
+```
+
+Only add software processing if measured problems remain.
+
+Possible optional software chain:
+
+```text
+S330
+ ↓
+light additional filtering / WebRTC processing
+ ↓
+VAD
+```
+
+Double AEC or aggressive double noise suppression may damage speech quality and must be avoided unless benchmarked.
+
+## 5.3 Speaker decision
+
+For the first implementation, use the S330 as BOTH:
+
+- microphone
+- robot speech speaker
+
+This gives the built-in full-duplex/echo-cancellation system the best chance to operate as intended.
+
+If production later uses a separate louder robot speaker, the audio architecture MUST be re-tested because the S330's internal echo canceller may not have the correct reference for an external speaker.
+
+## 5.4 Linux/Raspberry Pi validation
+
+Anker advertises plug-and-play USB compatibility but does not explicitly certify Raspberry Pi OS in the documentation reviewed.
+
+Therefore Phase 1 must validate:
+
+```bash
+arecord -l
+aplay -l
+arecord --dump-hw-params
+```
+
+Required tests:
+
+- S330 detected as USB audio capture device.
+- S330 detected as USB playback device.
+- simultaneous record/playback works.
+- 16 kHz capture works reliably.
+- no USB underruns.
+- no crackling.
+- physical mute state behavior understood.
+- sustained 2+ hour audio session.
+
+## 5.5 Event placement target
+
+Although the official maximum pickup figure is 3 m, our target operating distance should initially be:
+
+- Ideal: 0.5–1.2 m.
+- Acceptable: 1.2–2 m.
+- Stress test: 2–3 m.
+
+A robot should encourage natural standing distance rather than relying on the advertised maximum pickup radius.
+
+---
+
+# 6. Conversation Runtime
+
+## 6.1 Framework
+
+Foundation:
+
+**Pipecat**
+
+Reason:
+
+- Python.
+- voice-first.
+- realtime streaming.
+- modular STT/LLM/TTS services.
+- clean frame pipeline.
+- interruption handling.
+- metrics/evaluation ecosystem.
+- provider-neutral architecture.
+
+Repository:
+
+https://github.com/pipecat-ai/pipecat
+
+Pipecat is used as a runtime framework, not as the domain architecture of the whole product.
+
+InnoBrain business logic remains inside `src/innobrain`.
+
+---
+
+# 7. Conversation State Machine
+
+Keep this intentionally simple:
+
+```text
+IDLE
+  │
+  ▼
+LISTENING
+  │
+  ▼
+THINKING
+  │
+  ▼
+SPEAKING
+  │
+  ├──────── user interrupts ────────┐
+  ▼                                 │
+INTERRUPTED ─────────────────────► LISTENING
+```
+
+Other conditions such as network state, navigation state and screen state are properties, not conversation states.
+
+---
+
+# 8. VAD and Turn Completion
+
+## 8.1 VAD
+
+Use:
+
+**Silero VAD**
+
+Responsibility:
+
+- detect real speech activity.
+- wake conversation processing.
+- detect candidate silence.
+- assist interruption detection.
+
+VAD does NOT decide whether a thought is semantically complete.
+
+## 8.2 Semantic turn completion
+
+Use:
+
+**Pipecat Smart Turn v3**
+
+Reasons:
+
+- audio-native.
+- Arabic supported.
+- approximately 8M parameters.
+- CPU INT8 model available.
+- intended to work with lightweight VAD.
+- designed to distinguish pauses from completed conversational turns.
+
+Repository:
+
+https://github.com/pipecat-ai/smart-turn
+
+Recommended flow:
+
+```text
+speech
+ ↓
+Silero detects silence
+ ↓
+Smart Turn checks completion
+ ├── incomplete → keep listening
+ └── complete   → finalize user turn
+```
+
+---
+
+# 9. Barge-In / Interruption Contract
+
+Interruption is a core feature, not an enhancement.
+
+When the robot is speaking and genuine user speech is detected:
+
+1. Confirm incoming speech is likely the user, not residual robot audio.
+2. Stop speaker playback immediately.
+3. Cancel remaining TTS stream.
+4. Cancel stale LLM generation when safe.
+5. Cancel stale tool calls when safe.
+6. Mark the assistant response as interrupted.
+7. Record how much of the response was actually played.
+8. Begin a new user turn.
+9. Preserve useful context from the conversation.
+10. Never assume the visitor heard unplayed text.
+
+Engineering target:
+
+`user interruption → robot audio stop <= 250 ms`
+
+Stretch target:
+
+`<= 150–200 ms`
+
+---
+
+# 10. Speech-to-Text Strategy
+
+STT is an adapter.
+
+Interface concept:
+
+```python
+class STTProvider:
+    async def start(self): ...
+    async def stream_audio(self, pcm): ...
+    async def partial_text(self): ...
+    async def final_text(self): ...
+    async def stop(self): ...
+```
+
+## 10.1 Candidate priority
+
+### Candidate A — Deepgram Nova-3
+
+Why test:
+
+- strong realtime focus.
+- multilingual model.
+- advertised suitability for background noise/crosstalk/far-field audio.
+- keyterm prompting available.
+- current new-account offer: $200 free credit, no card required.
+
+Useful for event vocabulary such as:
+
+- company names.
+- speaker names.
+- booth names.
+- product names.
+- acronyms.
+
+Pricing reference:
+
+https://deepgram.com/pricing
+
+### Candidate B — Speechmatics
+
+Why test:
+
+- strong multilingual/code-switch positioning.
+- realtime WebSocket.
+- $100 starting credit.
+- no card required for initial testing.
+
+Pricing reference:
+
+https://www.speechmatics.com/pricing
+
+### Candidate C — Azure Speech
+
+Why test:
+
+- explicit Arabic Egypt support.
+- mature production speech stack.
+- F0 includes 5 audio hours/month for realtime STT.
+
+Pricing:
+
+https://azure.microsoft.com/en-us/pricing/details/speech/
+
+### Candidate D — Gemini realtime transcription
+
+Why test:
+
+- strong multilingual ecosystem.
+- free development tier on eligible models.
+- useful as both transcription and native-audio comparison path.
+
+### Local fallback — Metro-ASR Small
+
+Repository:
+
+https://github.com/MohammedAly22/metro-asr
+
+Current released checkpoint:
+
+- 61.6M parameters.
+- Egyptian-Arabic-focused.
+- Arabic/English-balanced tokenizer.
+- CPU-oriented non-autoregressive CTC architecture.
+- local/offline.
+
+Important:
+
+Published CPU speed numbers are not Raspberry Pi measurements.
+
+It MUST be benchmarked on our Pi before making it the default local STT.
+
+---
+
+# 11. LLM Strategy
+
+## 11.1 Main LLM during development
+
+Use a FAST REMOTE API.
+
+The application must not depend directly on one provider.
+
+Interface:
+
+```python
+class LLMProvider:
+    async def stream(self, messages, tools, context): ...
+    async def cancel(self): ...
+```
+
+## 11.2 First development candidate — Groq
+
+Recommended first API for prototype:
+
+**Groq + Qwen-family fast model**
+
+Current free-plan example for `qwen/qwen3.6-27b`:
+
+- 30 RPM.
+- 1,000 RPD.
+- 8K TPM.
+- 200K TPD.
+
+Official limit page:
+
+https://console.groq.com/docs/rate-limits
+
+Why:
+
+- generous enough for development.
+- extremely fast inference.
+- good fit for short RAG-grounded event answers.
+- tool calling available on suitable models.
+
+Model IDs MUST live in config because provider catalogs change.
+
+## 11.3 Secondary development candidate — Gemini Flash
+
+Gemini Flash is the main comparison provider.
+
+Current eligible Flash models expose a free tier for input/output during development.
+
+Important privacy rule:
+
+Free-tier requests may be used to improve Google's products according to current pricing documentation.
+
+Therefore:
+
+- synthetic/public test event data: permitted for prototype testing.
+- confidential client data: do not use free tier without reviewing data requirements.
+
+Reference:
+
+https://ai.google.dev/gemini-api/docs/pricing
+
+## 11.4 LLM responsibilities
+
+The LLM should:
+
+- understand Egyptian Arabic.
+- preserve natural Arabic-English code-switching.
+- resolve conversational references.
+- select tools.
+- use RAG evidence.
+- produce short spoken responses.
+- reason over event information.
+- ask clarification when evidence is ambiguous.
+- never invent event-critical facts.
+
+The LLM should NOT:
+
+- directly control motors.
+- generate raw SQL and execute it unchecked.
+- treat retrieved documents as system instructions.
+- answer exact operational facts from model memory when tools/data exist.
+
+---
+
+# 12. Local LLM Fallback
+
+Local fallback is for:
+
+- internet outage.
+- provider outage.
+- degraded mode.
+- basic FAQ.
+- simple RAG answers.
+- tool routing.
+
+It is NOT expected to match the main cloud model's speed and reasoning quality.
+
+## 12.1 Preferred benchmark candidate — Gemma 4 E2B
+
+Official Raspberry Pi 5 8GB benchmark using LiteRT-LM:
+
+- ~99 tokens/s prefill.
+- ~9 tokens/s decode.
+- ~1432 MB peak memory.
+
+Reference:
+
+https://www.raspberrypi.com/news/mastering-edge-ai-on-raspberry-pi-with-litert-and-gemma/
+
+This low memory footprint is attractive because the robot also runs audio, RAG, UI and robotics processes.
+
+## 12.2 Alternative candidate — Qwen3.5-2B Q4_K_M
+
+Community Pi 5 benchmark:
+
+- ~7.11 tokens/s.
+- ~1.00 s TTFT.
+- ~2748 MB peak RAM.
+
+Repository:
+
+https://github.com/Jiaming-Liuu/Pi5-LLM
+
+The benchmark is valuable but is not an official Raspberry Pi benchmark.
+
+## 12.3 Selection rule
+
+Benchmark both on the real system.
+
+Evaluate:
+
+- Egyptian response quality.
+- tool selection.
+- short grounded RAG answers.
+- TTFT.
+- tokens/sec.
+- RAM.
+- temperature.
+- interaction with audio/robot load.
+
+Default preference before benchmark:
+
+**Gemma 4 E2B for memory efficiency.**
+
+---
+
+# 13. Text-to-Speech Strategy
+
+TTS is also an adapter.
+
+```python
+class TTSProvider:
+    async def stream(self, text): ...
+    async def cancel(self): ...
+```
+
+## 13.1 Primary development candidate — Azure Speech
+
+Official Egyptian voices:
+
+- `ar-EG-SalmaNeural`
+- `ar-EG-ShakirNeural`
+
+Free F0 tier:
+
+- 0.5 million neural TTS characters/month.
+
+Sources:
+
+https://learn.microsoft.com/azure/ai-services/speech-service/language-support
+https://azure.microsoft.com/en-us/pricing/details/speech/
+
+Why this is the initial baseline:
+
+- explicit Egypt locale.
+- useful recurring free allowance.
+- simple deployment.
+- stable API.
+
+## 13.2 Benchmark alternatives
+
+Test against:
+
+- Gemini Native Audio.
+- ElevenLabs.
+- VoiceTut-TTS on suitable off-board GPU hardware if available.
+
+Do not assume generic Arabic support sounds Egyptian.
+
+Final selection requires native Egyptian listening tests.
+
+---
+
+# 14. Egyptian Arabic Persona
+
+The robot should sound Egyptian, not stereotyped and not unnecessarily formal.
+
+Rules:
+
+- Egyptian colloquial syntax.
+- concise spoken sentences.
+- natural use of common English technical terms.
+- no forced translation of words Egyptians normally keep in English.
+- no excessive slang.
+- avoid repetitive "يا باشا" style stereotypes.
+- polite, professional event tone.
+- preserve proper nouns.
+- confirm ambiguous names or times.
+- answers default to 1–3 spoken sentences unless more detail is requested.
+
+Example:
+
+Good:
+
+> "الـworkshop هتبدأ الساعة 4:30 في Hall A. تحب أوريهالك على الشاشة؟"
+
+Avoid:
+
+> "سوف تبدأ ورشة العمل في تمام الساعة الرابعة والنصف..."
+
+unless formal Arabic is explicitly requested.
+
+---
+
+# 15. Memory Design
+
+Keep memory lightweight and explicit.
+
+## 15.1 Active session memory
+
+Store:
+
+- last 8–12 turns.
+- running summary.
+- current speaker.
+- current session.
+- current booth.
+- current location.
+- current product.
+- active navigation destination.
+- user's current language style.
+- assistant playback boundary for interrupted responses.
+
+## 15.2 Reference resolution example
+
+```text
+User: "Ahmed بيتكلم فين؟"
+Robot: "في Main Stage."
+User: "طب الساعة كام؟"
+```
+
+Memory resolves:
+
+`"الساعة كام؟" → Ahmed's referenced session`
+
+## 15.3 Visitor isolation
+
+By default:
+
+**Do not remember a visitor after the session ends.**
+
+Reset visitor-specific context before the next person.
+
+Persistent visitor identity/personalization is outside V1.
+
+---
+
+# 16. Knowledge Architecture
+
+RAG is a CORE part of InnoBrain.
+
+The knowledge layer has two complementary systems.
+
+## A. Structured Event Truth
+
+Use SQLite for exact values:
+
+- schedules.
+- times.
+- speakers.
+- booths.
+- rooms.
+- locations.
+- waypoints.
+- prices.
+- product IDs.
+- current status.
+- approved actions.
+
+## B. Flexible Knowledge / RAG
+
+Use RAG for:
+
+- client profile.
+- product descriptions.
+- company information.
+- FAQs.
+- policies.
+- sponsor information.
+- brochures.
+- long event documents.
+- marketing material.
+- unstructured knowledge.
+
+Never force exact schedule truth through semantic similarity when a structured row exists.
+
+---
+
+# 17. Database Stack
+
+Initial stack:
+
+```text
+SQLite
+├── relational tables
+├── FTS5
+└── sqlite-vec
+```
+
+## 17.1 Why SQLite
+
+- low operational complexity.
+- perfect for one robot/event package.
+- local/offline.
+- easy backup.
+- easy event replacement.
+- lightweight on Pi.
+- no database server process.
+
+## 17.2 sqlite-vec
+
+Repository:
+
+https://github.com/asg017/sqlite-vec
+
+Features:
+
+- vector search inside SQLite.
+- pure C.
+- no external service.
+- works on Raspberry Pi.
+- supports float/int8/binary vectors.
+
+Important:
+
+`sqlite-vec` is currently pre-v1.
+
+Therefore:
+
+- pin exact version.
+- wrap it behind `VectorStore`.
+- do not spread sqlite-vec-specific SQL throughout the code.
+
+---
+
+# 18. RAG Retrieval Architecture
+
+The retrieval path is HYBRID.
+
+```text
+User query
+   │
+   ├── raw text
+   ├── normalized Egyptian Arabic
+   └── optional English retrieval representation
+            │
+            ▼
+      metadata filtering
+            │
+       ┌────┴─────┐
+       ▼          ▼
+   FTS5/BM25   Dense vector
+       │          │
+       └────┬─────┘
+            ▼
+       rank fusion
+            │
+            ▼
+      top candidates
+            │
+     optional reranker
+            │
+            ▼
+      evidence package
+            │
+            ▼
+            LLM
+```
+
+## 18.1 Mandatory metadata
+
+Every chunk should include:
+
+- `event_id`
+- `event_version`
+- `client_id`
+- `document_id`
+- `source_type`
+- `language`
+- `authority_level`
+- `valid_from`
+- `valid_until`
+- `chunk_id`
+
+This prevents data from old events or clients leaking into the active event.
+
+---
+
+# 19. Embeddings
+
+## 19.1 Initial local embedding model
+
+Recommended starting model:
+
+**multilingual-e5-small**
+
+Reasons:
+
+- multilingual.
+- Arabic support through multilingual training.
+- approximately 118M parameters.
+- 384-dimensional vectors.
+- 512-token maximum input.
+- MIT.
+- ONNX INT8 variant around 113 MB.
+
+Reference:
+
+https://huggingface.co/intfloat/multilingual-e5-small
+
+## 19.2 Important resource strategy
+
+Do NOT embed all documents on the robot during an event.
+
+Preferred workflow:
+
+```text
+Laptop / prep machine
+   ↓
+parse documents
+   ↓
+chunk
+   ↓
+generate embeddings
+   ↓
+build event DB/index
+   ↓
+deploy finished event package to Pi
+```
+
+During live operation the Pi only embeds incoming queries.
+
+This preserves CPU/RAM for realtime conversation.
+
+---
+
+# 20. Reranking
+
+Do not run a heavy reranker for every query.
+
+Initial V1:
+
+```text
+Hybrid retrieval
+→ Rank fusion
+→ Top K evidence
+```
+
+Add a reranker only when:
+
+- retrieval confidence is low.
+- many similar chunks exist.
+- documents are long or ambiguous.
+- benchmark shows measurable benefit.
+
+A remote or off-board reranker can be used later without changing the RAG interface.
+
+---
+
+# 21. Event Package
+
+Every event is a replaceable package.
+
+Conceptual layout:
+
+```text
+events/
+└── <event_id>/
+    ├── manifest.yaml
+    ├── event.db
+    ├── assets/
+    │   ├── images/
+    │   ├── maps/
+    │   └── qr/
+    └── source/
+        └── optional source metadata
+```
+
+Example manifest:
+
+```yaml
+event:
+  id: evt_001
+  version: 1.0.0
+  client: example_client
+  language:
+    - ar-EG
+    - en
+
+persona:
+  style: friendly-professional
+  verbosity: short
+
+features:
+  navigation: true
+  screen: true
+  rag: true
+
+fallback:
+  help_location: registration
+```
+
+Changing event data should not require changing Python source code.
+
+---
+
+# 22. Event Ingestion
+
+Document ingestion happens OFFLINE/PRE-EVENT where possible.
+
+Candidate parser:
+
+**Docling**
+
+Repository:
+
+https://github.com/docling-project/docling
+
+Use for:
+
+- PDF.
+- DOCX.
+- PPTX.
+- XLSX.
+- HTML.
+- Markdown.
+
+However:
+
+Structured event files should become structured records when possible.
+
+Example:
+
+`agenda.xlsx` should populate `sessions`, `speakers`, `locations`.
+
+It should not exist only as RAG chunks.
+
+---
+
+# 23. Suggested SQLite Tables
+
+Minimum conceptual schema:
+
+```text
+events
+event_versions
+speakers
+sessions
+locations
+booths
+products
+faqs
+documents
+chunks
+media
+navigation_waypoints
+conversation_sessions
+```
+
+Example session fields:
+
+```text
+id
+event_version_id
+title
+description
+speaker_id
+start_time
+end_time
+location_id
+status
+```
+
+Example chunk fields:
+
+```text
+id
+document_id
+event_version_id
+text
+language
+source_type
+authority_level
+valid_from
+valid_until
+```
+
+Vector embeddings live through sqlite-vec using the chunk ID.
+
+---
+
+# 24. Tool Router
+
+LLM tools are semantic and allowlisted.
+
+Examples:
+
+```text
+get_event_schedule(...)
+get_speaker(...)
+get_session(...)
+find_location(...)
+get_booth(...)
+get_product(...)
+search_event_knowledge(...)
+show_screen_card(...)
+show_route(...)
+navigate_to(...)
+cancel_navigation(...)
+get_navigation_status(...)
+request_human_help(...)
+```
+
+The model must not directly execute:
+
+- shell commands.
+- arbitrary SQL.
+- ROS velocity messages.
+- arbitrary network requests.
+
+---
+
+# 25. Robot Gateway
+
+Boundary:
+
+```text
+Conversation Brain
+       ↓
+ semantic tool
+       ↓
+ RobotGateway
+       ↓
+ ROS2 / robot navigation system
+```
+
+Example:
+
+```json
+{
+  "action": "navigate_to",
+  "location_id": "hall_b"
+}
+```
+
+RobotGateway validates:
+
+- destination exists.
+- destination is allowed for the event.
+- navigation is enabled.
+- robot is in a safe state.
+- semantic destination maps to an approved waypoint.
+
+ROS/navigation remains responsible for:
+
+- localization.
+- path planning.
+- obstacle avoidance.
+- collision safety.
+- emergency stop.
+- motor commands.
+
+---
+
+# 26. Screen Gateway
+
+The LLM sends semantic screen events.
+
+Example:
+
+```json
+{
+  "type": "speaker_card",
+  "speaker_id": "spk_01"
+}
+```
+
+Frontend decides how it looks.
+
+Reusable screen events:
+
+- welcome.
+- schedule.
+- speaker.
+- booth.
+- product.
+- map.
+- route.
+- QR.
+- promotion.
+- navigation state.
+- offline/help state.
+
+Never let the LLM generate arbitrary production HTML for the robot display.
+
+---
+
+# 27. Provider Configuration
+
+Providers are selected from configuration.
+
+Example:
+
+```yaml
+stt:
+  primary: deepgram
+  fallback: metro_local
+
+llm:
+  primary: groq
+  secondary: gemini
+  local_fallback: gemma4_e2b
+
+tts:
+  primary: azure
+  voice: ar-EG-ShakirNeural
+
+embedding:
+  primary: multilingual-e5-small
+```
+
+Changing provider should not require changing conversation logic.
+
+---
+
+# 28. Free-Tier Development Strategy
+
+Current options to exploit during prototype development:
+
+## LLM
+
+### Groq
+
+Useful free limits for development on selected models.
+
+Current documented example for Qwen3.6-27B:
+
+- 30 RPM
+- 1K RPD
+- 8K TPM
+- 200K TPD
+
+Reference:
+
+https://console.groq.com/docs/rate-limits
+
+### Gemini
+
+Eligible Flash models offer free input/output usage within free-tier quota.
+
+Reference:
+
+https://ai.google.dev/gemini-api/docs/pricing
+
+Privacy note:
+
+free-tier data may be used to improve Google products.
+
+## STT
+
+### Deepgram
+
+Current offer:
+
+- $200 free credit.
+- no credit card required.
+
+Reference:
+
+https://deepgram.com/pricing
+
+### Speechmatics
+
+Current offer:
+
+- $100 free starting credit.
+- no card required.
+
+Reference:
+
+https://www.speechmatics.com/pricing
+
+### Azure
+
+F0:
+
+- 5 realtime STT hours/month.
+
+Reference:
+
+https://azure.microsoft.com/en-us/pricing/details/speech/
+
+## TTS
+
+### Azure
+
+F0:
+
+- 0.5M neural characters/month.
+
+Explicit Egyptian voices exist.
+
+This is the preferred starting TTS benchmark.
+
+---
+
+# 29. Raspberry Pi Resource Policy
+
+The Pi is shared with robot software.
+
+Never benchmark AI components in isolation only.
+
+Always profile under representative load.
+
+Target resource policy:
+
+```text
+OS + robot services                   ~1.5–2 GB
+Audio/runtime/VAD/turn detection      <0.5 GB target
+SQLite/RAG/cache                      ~0.3–0.7 GB target
+Local fallback LLM                    ~1.4–3 GB
+Safety headroom                       >=1.5 GB
+```
+
+These are engineering budgets, not guaranteed measurements.
+
+Rules:
+
+- avoid swap during conversation.
+- use active cooling.
+- use 64-bit OS.
+- prefer NVMe/fast storage for models and event packages if possible.
+- monitor temperature.
+- monitor memory.
+- benchmark while ROS/UI/audio are active.
+
+---
+
+# 30. Production Repository Structure
+
+```text
+inno-brain/
+│
+├── MASTER_PLAN.md
+├── README.md
+│
+├── src/
+│   └── innobrain/
+│       │
+│       ├── audio/
+│       │   ├── capture.py
+│       │   ├── playback.py
+│       │   ├── processing.py
+│       │   ├── vad.py
+│       │   └── turn_detector.py
+│       │
+│       ├── voice/
+│       │   ├── runtime.py
+│       │   ├── state.py
+│       │   └── interruption.py
+│       │
+│       ├── providers/
+│       │   ├── stt/
+│       │   ├── llm/
+│       │   ├── tts/
+│       │   └── embeddings/
+│       │
+│       ├── conversation/
+│       │   ├── orchestrator.py
+│       │   ├── memory.py
+│       │   ├── context.py
+│       │   └── persona.py
+│       │
+│       ├── knowledge/
+│       │   ├── ingestion.py
+│       │   ├── chunking.py
+│       │   ├── normalize.py
+│       │   ├── lexical_search.py
+│       │   ├── vector_search.py
+│       │   ├── hybrid_retriever.py
+│       │   ├── reranker.py
+│       │   └── evidence.py
+│       │
+│       ├── event/
+│       │   ├── database.py
+│       │   ├── schema.py
+│       │   ├── package.py
+│       │   └── tools.py
+│       │
+│       ├── robot/
+│       │   ├── gateway.py
+│       │   └── screen.py
+│       │
+│       ├── telemetry/
+│       │   ├── metrics.py
+│       │   └── logging.py
+│       │
+│       ├── config.py
+│       └── main.py
+│
+├── config/
+│   ├── runtime.yaml
+│   ├── providers.yaml
+│   └── persona.yaml
+│
+├── events/
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+│
+├── evals/
+│   ├── audio/
+│   ├── stt/
+│   ├── rag/
+│   ├── tts/
+│   ├── conversation/
+│   └── latency/
+│
+├── scripts/
+│   ├── build_event.py
+│   ├── benchmark_audio.py
+│   ├── benchmark_stt.py
+│   ├── benchmark_rag.py
+│   └── benchmark_llm.py
+│
+└── _research/
+    ├── sources.yaml
+    └── repos/
+```
+
+---
+
+# 31. Donor Repository Policy
+
+## 31.1 Workspace Layout
+
+Use one workspace with the production repository separated from cloned research repositories:
+
+```text
+InnoBrainWorkspace/
+│
+├── inno-brain/             # OUR production GitHub repository
+│   ├── MASTER_PLAN.md
+│   ├── src/
+│   ├── tests/
+│   ├── evals/
+│   └── ...
+│
+└── donor-repos/            # cloned external repositories for study/reuse
+    ├── pipecat/
+    ├── smart-turn/
+    ├── silero-vad/
+    └── ...
+```
+
+**Critical rule:** production code must not import code using relative paths from `donor-repos/`.
+
+The coding agent may inspect, adapt or reuse permitted code from donor repositories, but the resulting implementation belongs inside `inno-brain/` with license obligations preserved.
+
+## 31.2 V1 Clone Set — Frozen
+
+The V1 workspace should clone the following repositories.
+
+### Core / Foundation
+
+1. `pipecat-ai/pipecat`
+   - Role: realtime voice runtime, frames, streaming and provider patterns.
+   - https://github.com/pipecat-ai/pipecat
+
+2. `pipecat-ai/smart-turn`
+   - Role: semantic end-of-turn detection.
+   - https://github.com/pipecat-ai/smart-turn
+
+3. `snakers4/silero-vad`
+   - Role: lightweight speech activity detection.
+   - https://github.com/snakers4/silero-vad
+
+4. `asg017/sqlite-vec`
+   - Role: local vector search inside SQLite.
+   - https://github.com/asg017/sqlite-vec
+
+5. `strands-labs/pywebrtc-audio`
+   - Role: optional software AEC / NS / AGC reference and implementation candidate.
+   - https://github.com/strands-labs/pywebrtc-audio
+
+6. `ggml-org/llama.cpp`
+   - Role: local fallback LLM runtime on ARM/Raspberry Pi.
+   - https://github.com/ggml-org/llama.cpp
+
+### Egyptian Speech Candidates
+
+7. `MohammedAly22/metro-asr`
+   - Role: lightweight local Egyptian-Arabic STT finalist.
+   - https://github.com/MohammedAly22/metro-asr
+
+8. `MohammedAly22/VoiceTuT-TTS`
+   - Role: Egyptian-Arabic TTS and Egyptian text-normalization donor/candidate.
+   - https://github.com/MohammedAly22/VoiceTuT-TTS
+
+### Architecture / Interaction Donors
+
+9. `sarmakska/voice-agent-starter`
+   - Role: clean adapters, state-machine ideas, barge-in cancellation and tests.
+   - https://github.com/sarmakska/voice-agent-starter
+
+10. `dnhkng/GLaDOS`
+    - Role: low-latency voice interaction, interruption, memory and natural-assistant design reference.
+    - https://github.com/dnhkng/GLaDOS
+
+11. `studerus/pepper-android-realtime-chat`
+    - Role: physical-robot interaction, perception events, function calling, navigation and HRI lifecycle.
+    - https://github.com/studerus/pepper-android-realtime-chat
+
+### RAG / Event Knowledge Donors
+
+12. `araobp/compact-rag`
+    - Role: Raspberry-Pi-oriented hybrid RAG using SQLite + sqlite-vec.
+    - https://github.com/araobp/compact-rag
+
+13. `docling-project/docling`
+    - Role: pre-event document parsing and structured ingestion.
+    - https://github.com/docling-project/docling
+
+## 31.3 Repositories NOT Cloned in V1
+
+These are useful research references but are not needed in the initial workspace:
+
+- `MohammedAly22/qwencleo-asr`
+  - Keep as an off-board GPU STT reference. Do not clone unless we actually have a GPU deployment path to test.
+
+- `k2-fsa/sherpa-onnx`
+  - Strong ARM speech toolkit, but overlaps current V1 needs. Add only if the selected local speech model needs it.
+
+- `FlagOpen/FlagEmbedding`
+  - Do not clone just to use an embedding model. Model weights can be pulled directly from Hugging Face when required.
+
+- `protoLabsAI/protoVoice`
+  - Useful, but overlaps Pipecat + voice-agent-starter + GLaDOS for our current V1 learning needs.
+
+- Pi-specific benchmark repositories
+  - Use published results for pre-selection. Clone only if needed to reproduce a disputed benchmark.
+
+## 31.4 Benchmark Policy
+
+We do **not** clone five model repositories just to benchmark everything.
+
+Use this process:
+
+```text
+Published benchmarks / papers / existing Pi results
+                  ↓
+            pre-filter models
+                  ↓
+           choose 1–2 finalists
+                  ↓
+       benchmark finalists on OUR Pi
+                  ↓
+              choose winner
+```
+
+A local benchmark is mandatory only when hardware-specific uncertainty can materially change the decision.
+
+Examples:
+
+- STT: benchmark the best local Egyptian candidate against the best free-tier API.
+- Local LLM: benchmark only the top 1–2 small models that fit the Pi memory budget.
+- TTS: prefer native-Egyptian API listening tests first; local heavyweight TTS is tested only if there is a credible Pi/off-board deployment path.
+- Smart Turn: test on our Egyptian pauses/hesitations because generic Arabic support does not guarantee perfect Egyptian conversational behavior.
+
+## 31.5 Donor Inventory Metadata
+
+Record every cloned donor in `donor-repos/REPOS.md` or a workspace-level manifest with:
+
+```yaml
+repo_name:
+  url:
+  commit:
+  license:
+  category:
+  why_cloned:
+  useful_paths:
+  production_dependency:
+```
+
+This keeps the coding agent from repeatedly re-discovering why a repository exists.
+
+---
+
+
+# 31.6 Pre-Phase-1 Bootstrap Handoff
+
+Before Phase 1 begins, Codex should perform a one-time workspace bootstrap.
+
+The bootstrap has a strict boundary:
+
+**It prepares the workspace and research material. It does NOT implement the voice pipeline, RAG runtime, STT, TTS, LLM adapters, or robot integration yet.**
+
+Required bootstrap outputs:
+
+1. Create local workspace `InnoBrainWorkspace/`.
+2. Create production repository folder `InnoBrainWorkspace/inno-brain/`.
+3. Create or connect GitHub repository `inno-brain`.
+4. Copy this Master Plan into the production repository as `MASTER_PLAN.md`.
+5. Clone the frozen V1 donor repository set into sibling folder `InnoBrainWorkspace/donor-repos/`.
+6. Record each donor's exact URL, branch, HEAD commit SHA, license, role and useful paths.
+7. Inspect the donor repositories and produce a concise implementation-reuse report.
+8. Scaffold the production repository structure without implementing Phase 1 features.
+9. Verify donor repositories remain clean and production code has no cross-imports from donor repositories.
+10. Commit and push the bootstrap state if GitHub authentication is available.
+11. Stop and report readiness for Phase 1.
+
+Bootstrap repository visibility default:
+
+- Prefer a **private** GitHub repository unless the user explicitly requests public visibility.
+- Never overwrite or delete an existing remote repository automatically.
+
+The detailed execution handoff is maintained separately in:
+
+`CODEX_PRE_PHASE1_BOOTSTRAP.md`
+
+
+# 32. Six Implementation Phases
+
+The project should remain six major phases.
+
+## PHASE 1 — Foundation + Hardware Validation
+
+Deliver:
+
+- clean repository.
+- Master Plan.
+- donor repos cloned.
+- Pi environment setup.
+- S330 detected and tested.
+- config system.
+- provider interfaces.
+- logging baseline.
+- initial eval dataset.
+
+Exit criteria:
+
+- Pi captures and plays audio reliably.
+- S330 simultaneous record/playback validated.
+- repository structure stable.
+
+## PHASE 2 — Realtime Conversation Core
+
+Deliver:
+
+- Pipecat.
+- Silero VAD.
+- Smart Turn.
+- state machine.
+- streaming audio.
+- interruption/cancellation.
+- basic text echo test.
+
+Exit criteria:
+
+- user can speak.
+- pauses do not trigger obvious premature answers.
+- user can interrupt audio playback.
+- no overlapping TTS streams.
+
+## PHASE 3 — Speech + Brain + RAG
+
+Deliver:
+
+- STT adapters.
+- LLM adapters.
+- TTS adapters.
+- SQLite.
+- FTS5.
+- sqlite-vec.
+- multilingual E5.
+- hybrid retrieval.
+- session memory.
+- Egyptian persona.
+
+Exit criteria:
+
+- natural Egyptian Q&A.
+- code-switch test works.
+- RAG answers grounded in event evidence.
+- exact event facts use structured data.
+- main cloud provider and local fallbacks function.
+
+## PHASE 4 — Dynamic Event Package
+
+Deliver:
+
+- event package schema.
+- event versioning.
+- document ingestion workflow.
+- structured import.
+- vector index build.
+- event switching.
+- validation report.
+
+Exit criteria:
+
+- replace event package without modifying application code.
+- old event data does not leak into new event.
+
+## PHASE 5 — Robot + Screen Integration
+
+Deliver:
+
+- semantic tools.
+- RobotGateway.
+- screen events.
+- navigation integration.
+- action safety checks.
+
+Exit criteria:
+
+- AI can request approved navigation.
+- AI cannot send raw motor commands.
+- screen can show event entities.
+
+## PHASE 6 — Event Hardening
+
+Deliver:
+
+- noise testing.
+- latency benchmark.
+- STT/TTS provider bake-off.
+- Pi thermal/load testing.
+- API outage fallback.
+- long-duration testing.
+- final golden evaluation set.
+
+Exit criteria:
+
+- stable multi-hour run.
+- acceptable event-noise recognition.
+- interruption reliable.
+- no critical event fact hallucinated in golden tests.
+- graceful fallback works.
+
+---
+
+# 33. Provider Bake-Off
+
+Do not select winners by marketing.
+
+## STT tests
+
+Compare:
+
+- Deepgram.
+- Speechmatics.
+- Azure.
+- Gemini.
+- Metro local.
+
+Dataset:
+
+- Egyptian only.
+- English only.
+- Egyptian + English nouns.
+- English + Arabic nouns.
+- speaker names.
+- product names.
+- room/booth numbers.
+- times.
+- fast speech.
+- hesitation.
+- far field.
+- crowd noise.
+- music.
+- robot playback active.
+
+Metrics:
+
+- WER.
+- CER.
+- proper-name recall.
+- number/time accuracy.
+- code-switch accuracy.
+- partial latency.
+- finalization latency.
+- CPU/RAM for local models.
+
+## TTS tests
+
+Compare:
+
+- Azure Salma.
+- Azure Shakir.
+- Gemini Audio.
+- ElevenLabs.
+- VoiceTut if off-board GPU exists.
+
+Native Egyptian judges score:
+
+1–5:
+
+- Egyptian authenticity.
+- naturalness.
+- English word pronunciation.
+- proper nouns.
+- numbers.
+- warmth.
+- professionalism.
+- listener fatigue.
+- time to first audio.
+
+## LLM tests
+
+Compare:
+
+- Groq fast Qwen model.
+- Gemini Flash.
+- Gemma local.
+- Qwen local.
+
+Measure:
+
+- Egyptian naturalness.
+- tool accuracy.
+- grounded answers.
+- reference resolution.
+- first-token latency.
+- complete short-answer latency.
+
+---
+
+# 34. RAG Evaluation
+
+Build 100+ event questions with known evidence.
+
+Categories:
+
+- direct fact.
+- paraphrase.
+- Egyptian slang.
+- Arabic/English code-switch.
+- English document / Arabic question.
+- proper names.
+- ambiguous question.
+- conflicting documents.
+- expired information.
+- unsupported question.
+
+Metrics:
+
+- Recall@K.
+- MRR.
+- nDCG where useful.
+- evidence correctness.
+- answer faithfulness.
+- unsupported-answer rejection.
+
+RAG success means the correct evidence is retrieved, not merely that the final answer sounds convincing.
+
+---
+
+# 35. Latency Targets
+
+Engineering targets:
+
+## Simple conversational turn
+
+`end of user turn → first useful robot audio`
+
+Target P50:
+
+`~1.0–1.2 s or better`
+
+Target P95:
+
+`<= 1.8 s`
+
+## Barge-in
+
+`user starts speaking → robot playback stops`
+
+Target:
+
+`<= 250 ms`
+
+Stretch:
+
+`<= 150–200 ms`
+
+## Important design rule
+
+Optimize TIME TO FIRST USEFUL AUDIO, not total answer completion.
+
+Responses should stream.
+
+---
+
+# 36. Natural Conversation Behaviors
+
+Required behaviors:
+
+- user can pause briefly while thinking.
+- robot does not interrupt every silence.
+- robot can be interrupted.
+- robot remembers the current topic.
+- robot understands references such as "هو", "هناك", "اللي بعدها".
+- answers are short by default.
+- robot may use brief natural acknowledgements while a slow tool is running.
+- acknowledgements should not become repetitive filler.
+- robot should ask clarification when event entities are ambiguous.
+
+Example target:
+
+```text
+User:
+"الـsession بتاعة AI..."
+
+[pause]
+
+"...بتاعة Ahmed يعني."
+
+Robot:
+"أيوه، أحمد عنده session الساعة—"
+
+User:
+"لا استنى، قصدي Mohamed."
+
+Robot immediately stops.
+
+Robot:
+"تمام، محمد. الـsession بتاعته الساعة 5 في Hall B."
+```
+
+---
+
+# 37. Failure Modes and Fallbacks
+
+## API outage
+
+```text
+primary provider fails
+      ↓
+secondary provider
+      ↓
+local fallback
+```
+
+## Internet outage
+
+Robot should retain:
+
+- active event DB.
+- local RAG.
+- session memory.
+- basic local LLM.
+- navigation tools.
+- screen.
+- essential FAQ.
+
+## STT unavailable
+
+Possible degraded modes:
+
+- local Metro-ASR.
+- touch/text UI if available.
+
+## TTS unavailable
+
+Possible degraded mode:
+
+- local/basic TTS later if added.
+- screen text output.
+
+---
+
+# 38. Observability
+
+Log per turn:
+
+- session ID.
+- turn ID.
+- language.
+- STT provider.
+- STT partial/final times.
+- retrieval duration.
+- evidence IDs.
+- LLM provider.
+- first token time.
+- TTS provider.
+- first audio time.
+- interruption time.
+- tool calls.
+- tool success/failure.
+- total latency.
+- CPU.
+- RAM.
+- temperature.
+- network state.
+
+Do not log unlimited raw visitor audio by default.
+
+---
+
+# 39. Security and Grounding
+
+Rules:
+
+- event documents are untrusted data.
+- retrieved documents cannot override system instructions.
+- tool allowlists only.
+- no raw motor control from LLM.
+- no unvalidated SQL generated by the model.
+- API keys in environment/secrets, never committed.
+- every query scoped to active event/version.
+- unsupported facts produce an honest fallback.
+- do not fabricate schedules, rooms, speakers, prices or safety information.
+
+---
+
+# 40. Immediate Implementation Order
+
+When development begins:
+
+1. Create clean repository.
+2. Add this Master Plan.
+3. Clone approved donor repos into `_research/repos`.
+4. Validate S330 on Raspberry Pi.
+5. Measure simultaneous playback/capture.
+6. Build minimal Pipecat audio loop.
+7. Add Silero VAD.
+8. Add Smart Turn.
+9. Implement interruption.
+10. Add STT adapter.
+11. Add Groq LLM adapter.
+12. Add Azure TTS adapter.
+13. Add SQLite schema.
+14. Add FTS5.
+15. Add sqlite-vec.
+16. Add multilingual-e5-small.
+17. Build hybrid retriever.
+18. Add memory.
+19. Add event tools.
+20. Benchmark.
+21. Only then choose provider winners.
+
+---
+
+# 40.1 Project Naming Decision
+
+**Project / repository name:** `InnoBrain`
+
+Recommended GitHub repository slug:
+
+`inno-brain`
+
+Recommended local workspace:
+
+`InnoBrainWorkspace`
+
+Reason:
+
+`InnoVoice` is too narrow because the project also contains RAG, memory, event knowledge, tools and robot integration. `InnoBrain` describes the complete AI subsystem without tying the repository to one event or one speech provider.
+
+---
+
+# 41. Architecture Freeze Summary
+
+The architecture is considered sufficiently stable to start implementation.
+
+### Locked
+
+- Raspberry Pi edge controller.
+- S330 audio hardware.
+- Pipecat.
+- Silero + Smart Turn.
+- cascaded speech architecture.
+- provider adapters.
+- main cloud LLM + local fallback.
+- SQLite.
+- FTS5.
+- sqlite-vec.
+- hybrid RAG.
+- multilingual local embeddings.
+- session memory.
+- dynamic event packages.
+- semantic robot tools.
+- simple modular monolith.
+- six implementation phases.
+
+### Must be determined empirically
+
+- best STT.
+- best Egyptian TTS.
+- best main LLM API.
+- best local fallback LLM.
+- whether S330 needs extra software audio filtering.
+- final endpointing thresholds.
+- final RAG Top-K.
+- whether reranking is necessary.
+
+No provider decision is allowed to destabilize the architecture.
+
+---
+
+# 42. Source Snapshot
+
+Research snapshot used for this architecture includes:
+
+## Hardware
+
+Anker PowerConf S330:
+- https://ca.ankerwork.com/products/a3308
+- https://uk.ankerwork.com/products/a3308
+- https://service.ankerwork.com/article-description/PowerConf-S330-A3308-FAQ
+
+## Realtime voice
+
+Pipecat:
+- https://github.com/pipecat-ai/pipecat
+
+Smart Turn:
+- https://github.com/pipecat-ai/smart-turn
+
+WebRTC audio Python bindings candidate:
+- https://github.com/strands-labs/pywebrtc-audio
+
+## Speech
+
+Metro-ASR:
+- https://github.com/MohammedAly22/metro-asr
+
+QwenCleo-ASR:
+- https://github.com/MohammedAly22/qwencleo-asr
+
+VoiceTut-TTS:
+- https://github.com/MohammedAly22/VoiceTuT-TTS
+
+Azure Speech language support:
+- https://learn.microsoft.com/azure/ai-services/speech-service/language-support
+
+## AI APIs
+
+Groq:
+- https://console.groq.com/docs/rate-limits
+
+Gemini:
+- https://ai.google.dev/gemini-api/docs/pricing
+
+Deepgram:
+- https://deepgram.com/pricing
+
+Speechmatics:
+- https://www.speechmatics.com/pricing
+
+Azure:
+- https://azure.microsoft.com/en-us/pricing/details/speech/
+
+## Raspberry Pi local LLM
+
+Official Raspberry Pi Gemma benchmark:
+- https://www.raspberrypi.com/news/mastering-edge-ai-on-raspberry-pi-with-litert-and-gemma/
+
+Pi5-LLM Qwen benchmark:
+- https://github.com/Jiaming-Liuu/Pi5-LLM
+
+## Retrieval
+
+sqlite-vec:
+- https://github.com/asg017/sqlite-vec
+
+multilingual-e5-small:
+- https://huggingface.co/intfloat/multilingual-e5-small
+
+Docling:
+- https://github.com/docling-project/docling
+
+FlagEmbedding:
+- https://github.com/FlagOpen/FlagEmbedding
+
+## Robot/HRI reference
+
+Pepper realtime AI:
+- https://github.com/studerus/pepper-android-realtime-chat
+
+---
+
+# 43. Change Log
+
+## v1.2 — 2026-09-01
+
+- Added the formal **Pre-Phase-1 Codex Bootstrap** boundary.
+- Defined workspace bootstrap outputs and stop condition.
+- Defined GitHub repository default as private unless explicitly changed by the user.
+- Required donor repository URL/branch/SHA/license inventory and inspection report.
+- Clarified that bootstrap scaffolding must not start Phase 1 implementation.
+- Added `CODEX_PRE_PHASE1_BOOTSTRAP.md` as the execution handoff companion to this Master Plan.
+
+## v1.1 — 2026-09-01
+
+- Renamed the project/repository from Inno Talk to **InnoBrain** (`inno-brain`).
+- Declared **Egyptian Arabic as the primary MVP language**; English is secondary.
+- Added mandatory Master Plan change-control rule.
+- Moved donor repositories outside the production Git repository into a sibling `donor-repos/` folder.
+- Reduced and froze the V1 clone set to **13 high-value repositories**.
+- Added GLaDOS as a low-latency/interruption/memory donor.
+- Added Compact RAG as a Raspberry-Pi hybrid-RAG donor.
+- Removed QwenCleo-ASR, sherpa-onnx, FlagEmbedding and protoVoice from the initial clone set; they remain optional references.
+- Changed benchmark policy: use published evidence to pre-filter and benchmark only 1–2 hardware-relevant finalists on the real Raspberry Pi.
+- Clarified that donor repositories are code/reference sources, while implementation remains clean inside `inno-brain/`.
+
+## v1.0 — 2026-09-01
+
+- Locked Raspberry Pi 5 8GB as edge controller.
+- Confirmed Anker PowerConf S330 A3308 as audio hardware.
+- Locked SQLite + FTS5 + sqlite-vec.
+- Locked RAG as core architecture.
+- Locked hybrid retrieval.
+- Locked Pipecat + Silero + Smart Turn.
+- Locked API-first main LLM with local fallback.
+- Selected Groq as first LLM API to test.
+- Selected Azure Egyptian TTS as first TTS baseline.
+- Selected Deepgram/Speechmatics/Azure/Gemini/Metro as STT bake-off.
+- Selected Gemma 4 E2B and Qwen3.5-2B as local LLM bake-off.
+- Defined six implementation phases.
+- Defined donor repository policy.
+- Defined latency and barge-in targets.
+
+---
+
+**End of Master Plan v1.0**
