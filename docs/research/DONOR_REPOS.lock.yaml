@@ -1,0 +1,144 @@
+generated_at: "2026-09-02T02:48:57.6010434+03:00"
+repositories:
+  - name: pipecat
+    url: https://github.com/pipecat-ai/pipecat.git
+    local_path: ../donor-repos/pipecat
+    branch: main
+    commit: 719b580bd9c29532ed717288aef184d32286df20
+    license: BSD-2-Clause
+    license_evidence: LICENSE
+    category: foundation
+    role: "Realtime voice runtime, frames, streaming, pipelines, and provider patterns"
+    production_dependency: false
+
+  - name: smart-turn
+    url: https://github.com/pipecat-ai/smart-turn.git
+    local_path: ../donor-repos/smart-turn
+    branch: main
+    commit: 4786657e242dfe77dd138699ac564ee074a2a543
+    license: BSD-2-Clause
+    license_evidence: LICENSE
+    category: foundation
+    role: "Audio-native semantic end-of-turn detection"
+    production_dependency: false
+
+  - name: silero-vad
+    url: https://github.com/snakers4/silero-vad.git
+    local_path: ../donor-repos/silero-vad
+    branch: master
+    commit: 867c2aa692646a1f1de3e94a15c9dd9f614c0acb
+    license: MIT
+    license_evidence: LICENSE
+    category: foundation
+    role: "Lightweight speech activity detection and streaming state reference"
+    production_dependency: false
+
+  - name: sqlite-vec
+    url: https://github.com/asg017/sqlite-vec.git
+    local_path: ../donor-repos/sqlite-vec
+    branch: main
+    commit: 04d28bd21773981e2d266bbf6aa4efbd011eb4f6
+    license: REVIEW_REQUIRED
+    license_evidence: "No root LICENSE or COPYING file found in the inspected commit"
+    category: foundation
+    role: "SQLite vector extension and vec0 KNN/metadata reference"
+    production_dependency: false
+
+  - name: pywebrtc-audio
+    url: https://github.com/strands-labs/pywebrtc-audio.git
+    local_path: ../donor-repos/pywebrtc-audio
+    branch: main
+    commit: 041c3a127121561c0bad37c9942e5e59e859babe
+    license: Apache-2.0
+    license_evidence: LICENSE; pyproject.toml
+    category: foundation
+    role: "Optional WebRTC AEC, noise suppression, AGC, and VAD reference"
+    production_dependency: false
+
+  - name: llama.cpp
+    url: https://github.com/ggml-org/llama.cpp.git
+    local_path: ../donor-repos/llama.cpp
+    branch: master
+    commit: 3466812d1f06728effe7c0f3c0671117f461672d
+    license: MIT
+    license_evidence: LICENSE; README.md
+    category: foundation
+    role: "Local fallback LLM runtime, ARM build, quantization, and OpenAI-compatible server reference"
+    production_dependency: false
+
+  - name: metro-asr
+    url: https://github.com/MohammedAly22/metro-asr.git
+    local_path: ../donor-repos/metro-asr
+    branch: main
+    commit: 683dd44f22c082db1039e85f254aa905fd33c246
+    license: MIT
+    license_evidence: LICENSE; README.md; pyproject.toml
+    category: egyptian_speech
+    role: "Local Egyptian-Arabic and Arabic-English code-switching STT candidate"
+    production_dependency: false
+
+  - name: VoiceTuT-TTS
+    url: https://github.com/MohammedAly22/VoiceTuT-TTS.git
+    local_path: ../donor-repos/VoiceTuT-TTS
+    branch: main
+    commit: b5302e9420cce535ced742c2c1c630a189c2f28f
+    license: Apache-2.0
+    license_evidence: LICENSE; README.md; pyproject.toml
+    category: egyptian_speech
+    role: "Egyptian-Arabic TTS, code-switching, normalization, lexicon, and streaming reference"
+    production_dependency: false
+
+  - name: voice-agent-starter
+    url: https://github.com/sarmakska/voice-agent-starter.git
+    local_path: ../donor-repos/voice-agent-starter
+    branch: main
+    commit: 123073f8c99e682531fb29adb50e95ffaa3d2cab
+    license: MIT
+    license_evidence: LICENSE; README.md
+    category: interaction
+    role: "Full-duplex state machine, adapter seams, barge-in cancellation, tools, and tests"
+    production_dependency: false
+
+  - name: GLaDOS
+    url: https://github.com/dnhkng/GLaDOS.git
+    local_path: ../donor-repos/GLaDOS
+    branch: main
+    commit: 09f26d5bec0a0a5cb210c8077daceed507f5373c
+    license: MIT
+    license_evidence: LICENSE.txt
+    category: interaction
+    role: "Low-latency voice, interruption, memory/context, and autonomy reference"
+    production_dependency: false
+
+  - name: pepper-android-realtime-chat
+    url: https://github.com/studerus/pepper-android-realtime-chat.git
+    local_path: ../donor-repos/pepper-android-realtime-chat
+    branch: master
+    commit: c83de7bedb111c9101940b7bc2979c417d0aeba1
+    license: MIT
+    license_evidence: LICENSE
+    category: robot_hri
+    role: "Physical-robot lifecycle, semantic tools, navigation, perception, and screen reference"
+    production_dependency: false
+
+  - name: compact-rag
+    url: https://github.com/araobp/compact-rag.git
+    local_path: ../donor-repos/compact-rag
+    branch: main
+    commit: 993f0b3ab3bd884edfc4d346dc9b2050c6017b89
+    license: MIT
+    license_evidence: LICENSE
+    category: rag
+    role: "Raspberry-Pi-oriented SQLite, sqlite-vec, embeddings, and retrieval reference"
+    production_dependency: false
+
+  - name: docling
+    url: https://github.com/docling-project/docling.git
+    local_path: ../donor-repos/docling
+    branch: main
+    commit: 33e3be26e530b37096939e7ddf300bfda6d36346
+    license: MIT
+    license_evidence: LICENSE; README.md; pyproject.toml
+    category: ingestion
+    role: "Pre-event document parsing, unified document model, export, and chunking reference"
+    production_dependency: false
