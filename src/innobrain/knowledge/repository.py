@@ -2,12 +2,35 @@ import re
 import sqlite3
 from collections.abc import Sequence
 
+_RETRIEVAL_STOPWORDS = frozenset(
+    {
+        "and",
+        "event",
+        "the",
+        "what",
+        "where",
+        "when",
+        "is",
+        "الايفنت",
+        "الحدث",
+        "امتى",
+        "متى",
+        "فين",
+        "منين",
+        "مين",
+        "ايه",
+        "هو",
+        "هي",
+    }
+)
+
 
 def _safe_fts_query(query: str) -> str:
     tokens = [
         token
         for token in re.findall(r"[^\W_]+", query, flags=re.UNICODE)
         if token.casefold() not in {"and", "or", "not", "near"}
+        and token.casefold() not in _RETRIEVAL_STOPWORDS
     ]
     expressions = []
     for token in tokens:
