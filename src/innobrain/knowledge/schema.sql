@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS event_meta (
     title TEXT NOT NULL,
     event_date TEXT NOT NULL,
     venue_name TEXT NOT NULL,
-    timezone TEXT NOT NULL
+    timezone TEXT NOT NULL,
+    event_version TEXT NOT NULL DEFAULT '0.0.0',
+    client_id TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS locations (
@@ -61,7 +63,13 @@ CREATE TABLE IF NOT EXISTS documents (
     source_type TEXT NOT NULL,
     title TEXT NOT NULL,
     source_ref TEXT NOT NULL,
-    checksum TEXT NOT NULL
+    checksum TEXT NOT NULL,
+    event_version TEXT NOT NULL DEFAULT '0.0.0',
+    client_id TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT 'en',
+    authority_level TEXT NOT NULL DEFAULT 'reference',
+    valid_from TEXT,
+    valid_until TEXT
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -72,8 +80,17 @@ CREATE TABLE IF NOT EXISTS chunks (
     text TEXT NOT NULL,
     normalized_text TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    event_version TEXT NOT NULL DEFAULT '0.0.0',
+    client_id TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT 'en',
+    authority_level TEXT NOT NULL DEFAULT 'reference',
+    valid_from TEXT,
+    valid_until TEXT,
     UNIQUE(document_id, chunk_index)
 );
+
+INSERT OR IGNORE INTO schema_meta(key, value)
+VALUES ('database_schema_version', '2');
 
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     normalized_text,

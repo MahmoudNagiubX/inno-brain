@@ -1,6 +1,7 @@
 import re
 import sqlite3
 from collections.abc import Sequence
+from datetime import datetime
 
 _RETRIEVAL_STOPWORDS = frozenset(
     {
@@ -130,25 +131,45 @@ class EventRepository:
         event_id: str,
         normalized_query: str,
         limit: int,
+        reference_time: datetime | str | None = None,
     ) -> list[sqlite3.Row]:
         if limit < 1:
             return []
         safe_query = _safe_fts_query(normalized_query)
         if not safe_query:
             return []
-        return list(
-            self.conn.execute(
-                """
-                SELECT chunks.*, bm25(chunks_fts) AS lexical_rank_score
-                FROM chunks_fts
-                JOIN chunks ON chunks.id = chunks_fts.rowid
-                WHERE chunks.event_id = ? AND chunks_fts MATCH ?
-                ORDER BY lexical_rank_score, chunks.id
-                LIMIT ?
-                """,
-                (event_id, safe_query, limit),
+        query = """
+            SELECT chunks.*, bm25(chunks_fts) AS lexical_rank_score
+            FROM chunks_fts
+            JOIN chunks ON chunks.id = chunks_fts.rowid
+            WHERE chunks.event_id = ? AND chunks_fts MATCH ?
+        """
+        parameters: list[object] = [event_id, safe_query]
+        if reference_time is not None:
+            reference_value = (
+                reference_time.isoformat()
+                if isinstance(reference_time, datetime)
+                else reference_time
             )
-        )
+            query += """
+              AND (chunks.valid_from IS NULL OR chunks.valid_from <= ?)
+              AND (chunks.valid_until IS NULL OR chunks.valid_until > ?)
+            """
+            parameters.extend([reference_value, reference_value])
+        query += """
+            ORDER BY lexical_rank_score,
+                CASE chunks.authority_level
+                    WHEN 'official' THEN 0
+                    WHEN 'approved' THEN 1
+                    WHEN 'reference' THEN 2
+                    WHEN 'marketing' THEN 3
+                    ELSE 4
+                END,
+                chunks.id
+            LIMIT ?
+        """
+        parameters.append(limit)
+        return list(self.conn.execute(query, tuple(parameters)))
 
     def chunks_by_ids(self, chunk_ids: Sequence[int]) -> list[sqlite3.Row]:
         if not chunk_ids:

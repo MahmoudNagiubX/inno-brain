@@ -6,7 +6,8 @@ def test_repository_uses_structured_joins_and_safe_fts_queries() -> None:
     conn = connect_event_db(":memory:")
     initialize_schema(conn)
     conn.execute(
-        "INSERT INTO event_meta VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO event_meta(id, title, event_date, venue_name, timezone) "
+        "VALUES (?, ?, ?, ?, ?)",
         ("event", "Event", "2026-10-15", "Venue", "Africa/Cairo"),
     )
     conn.execute(
@@ -32,7 +33,8 @@ def test_repository_uses_structured_joins_and_safe_fts_queries() -> None:
     )
     conn.execute("INSERT INTO session_speakers VALUES (?, ?)", ("ses", "spk"))
     conn.execute(
-        "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO documents(id, event_id, source_type, title, source_ref, checksum) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
         ("doc", "event", "markdown", "Guide", "fixture://guide", "checksum"),
     )
     conn.execute(
