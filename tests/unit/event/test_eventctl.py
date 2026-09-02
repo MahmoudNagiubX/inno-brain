@@ -16,6 +16,17 @@ def test_cli_help_does_not_import_docling() -> None:
     parser = module.build_parser()
     assert parser.prog == "eventctl"
     assert {action.dest for action in parser._subparsers._group_actions} == {"command"}
+    commands = next(iter(parser._subparsers._group_actions)).choices
+    assert set(commands) == {
+        "build",
+        "validate",
+        "install",
+        "list",
+        "status",
+        "activate",
+        "rollback",
+        "fetch",
+    }
 
 
 def test_build_reports_isolated_builder_setup_when_docling_is_missing(monkeypatch, capsys) -> None:
