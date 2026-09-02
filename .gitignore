@@ -30,6 +30,7 @@ events/current/
 # Logs / captures
 logs/
 recordings/
+artifacts/
 *.wav
 
 # OS / IDE

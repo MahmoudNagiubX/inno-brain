@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
-> **Version:** 1.5  
+> **Version:** 1.6
 > **Date:** 2026-09-01  
-> **Status:** Architecture baseline locked; provider/model winners remain benchmark-driven  
+> **Status:** Phase 1 complete on Windows laptop; architecture baseline locked; provider/model winners remain benchmark-driven
 > **Current development platform:** Windows laptop (primary development and testing environment)  
 > **Current development audio:** Laptop microphone + laptop speakers/headphones  
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM  
@@ -1754,6 +1754,8 @@ The project should remain six major phases.
 
 ## PHASE 1 — Foundation + Hardware Validation
 
+The v1.6 Phase 1 execution result is defined by the laptop-focused contract in section 32.1. Raspberry Pi 5 and Anker PowerConf S330 validation remain deferred deployment prerequisites and are not Phase 1 blockers.
+
 Deliver:
 
 - clean repository.
@@ -1776,6 +1778,24 @@ Exit criteria:
 # 32.1 Phase 1 Execution Contract — Foundation + Laptop Audio Validation
 
 **Execution status at v1.5 creation:** `AUTHORIZED_NOT_STARTED`
+
+**Phase 1 completion status at v1.6:** `PHASE_1_COMPLETE`
+
+### Phase 1 measured Windows laptop results
+
+- OS: Microsoft Windows 11 Home Single Language, version 10.0.26200, build 26200.
+- Python: 3.14.6 in the project virtual environment.
+- Branch: `phase/1-foundation-laptop-audio`.
+- OS default input: index 1, `Microphone Array (Realtek(R) Au`.
+- OS default output: index 3, `Speakers (Realtek(R) Audio)`.
+- Development audio path: 16 kHz, mono PCM16 WAV recording and laptop playback.
+- Final Egyptian sample: 10 seconds, 0% clipping; user listening gate PASS.
+- User feedback: speech was clear and intelligible enough for development; background noise was acceptable; playback worked normally; recording level was slightly low but not a blocker.
+- Automated verification: 9 tests passed; Ruff passed; configuration loaded as `ar-EG laptop`.
+- Repeated short record/playback smoke: PASS with two 4-second samples.
+- No Windows device index is hard-coded in production configuration; input/output remain `null` defaults.
+- No provider API was called and no model weights were downloaded.
+- Raspberry Pi 5 and Anker PowerConf S330: NOT TESTED in Phase 1; deployment validation deferred.
 
 Phase 1 is deliberately focused on creating a complete software foundation and validating audio I/O on the current development laptop.
 
@@ -1887,6 +1907,8 @@ No `WAITING_FOR_PI` state exists for current development.
 The lack of Raspberry Pi access is NOT a Phase 1 blocker.
 
 Only `PHASE_1_COMPLETE` authorizes Phase 2.
+
+**Current authorization:** Phase 2 is authorized after the completed laptop manual gate; Phase 2 implementation was not started in this branch.
 
 ## Phase 1 completion action
 
@@ -2440,6 +2462,15 @@ Pepper realtime AI:
 ---
 
 # 43. Change Log
+
+## v1.6 — 2026-09-02
+
+- Completed the laptop-focused Phase 1 execution on `phase/1-foundation-laptop-audio`.
+- Recorded the Windows 11 laptop/default microphone and output results in the Phase 1 report.
+- Confirmed the 16 kHz mono PCM16 development audio path through recording, analysis and playback.
+- Recorded the user manual listening gate as PASS; the slightly low recording level is a non-blocking development note.
+- Deferred Raspberry Pi 5 and Anker PowerConf S330 deployment validation; neither blocked Phase 1.
+- Authorized Phase 2 by completing Phase 1, while leaving all Phase 2 implementation unstarted.
 
 ## v1.5 — 2026-09-02
 
