@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.14
-> **Date:** 2026-09-02
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Phase 5 implementation not started; Gate 5A pre-voice audit in progress
+> **Version:** 1.15
+> **Date:** 2026-09-03
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B remediation in progress; Gate 5C real voice blocked pending separate Sol re-review
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -3502,6 +3502,34 @@ Phase 5 is gated and ordered as follows:
 - Resolve all P0/P1 audit findings in a separate remediation pass, if any.
 - Phase 5 real conversation may not start while any P0/P1 remains unresolved.
 
+Locked remediation architecture:
+
+1. Gate 5B fixes the audited package TOCTOU P0 and all seven P1 blockers before
+   any live voice execution.
+2. Package verification and extraction share the same authenticated,
+   already-open archive stream; extraction revalidates payload size and SHA-256
+   while writing.
+3. STT SDK callbacks cross threads only through the owning asyncio event loop.
+4. Final transcripts are aggregated per monotonic `turn_id`; stale and duplicate
+   final events are rejected.
+5. Speechmatics remains primary STT and Deepgram remains the runtime fallback.
+6. Startup or pre-audio STT failure may fail over immediately. Failure after
+   audio acceptance fails that turn and activates fallback only for the next
+   turn; partial audio is never replayed silently.
+7. Barge-in stops local playback before waiting for remote cancellation.
+8. LLM, TTS, and response cancellation is explicit, bounded, and observable.
+9. Every response failure path recovers the conversation to a safe state.
+10. Exact-answer entities survive delivery into session memory and support
+    deterministic follow-up resolution without an LLM guess.
+11. Event switching atomically rebinds the brain's knowledge snapshot and
+    resets visitor memory before the old event context closes.
+12. One `InnoBrainApplication` owns provider, event, knowledge, voice, startup,
+    rollback, and shutdown lifecycle.
+13. A production-intent CLI provides an offline `python -m innobrain check`;
+    Gate 5B performs no provider network calls or human microphone tests.
+14. Gate 5C remains blocked until a separate GPT-5.6 Sol re-review reports zero
+    P0/P1 findings.
+
 ### Gate 5C — Real Provider + Real Voice Integration
 
 Prove the complete controlled conversation path:
@@ -4246,4 +4274,20 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.14**
+## v1.15 - 2026-09-03
+
+- Locked the Gate 5B pre-voice remediation architecture for the audited package
+  trust boundary, STT turn isolation/failover, cancellation/state recovery,
+  entity-aware memory, atomic event-brain rebinding, and one application
+  lifecycle owner.
+- Preserved Speechmatics primary, Deepgram fallback, Groq
+  `openai/gpt-oss-120b`, Azure `ar-EG-ShakirNeural`, Pipecat/Silero/Smart Turn,
+  and `sqlite-vec==0.1.9` without threshold or provider-selection changes.
+- Kept Gate 5C real provider/voice execution blocked until a separate Sol
+  re-review reports zero P0/P1 findings.
+- Confirmed that Gate 5B performs no real provider calls, microphone tests,
+  Robot, Screen, or ROS work.
+
+---
+
+**End of Master Plan v1.15**
