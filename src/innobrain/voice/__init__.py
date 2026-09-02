@@ -1,3 +1,4 @@
+from .interruption import InterruptionController, InterruptionResult
 from .state import (
     ConversationState,
     ConversationStateMachine,
@@ -8,6 +9,8 @@ from .state import (
 __all__ = [
     "ConversationState",
     "ConversationStateMachine",
+    "InterruptionController",
+    "InterruptionResult",
     "InvalidStateTransition",
     "StateTransition",
 ]
