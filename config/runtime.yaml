@@ -32,3 +32,7 @@ realtime:
   mock_response_tone_hz: 440.0
   mock_response_duration_secs: 6.0
   mock_response_volume: 0.08
+
+conversation:
+  memory_max_turns: 10
+  memory_ttl_seconds: 300

@@ -1,24 +1,44 @@
-selection_status: benchmark_pending
+selection_status: phase3_baseline_selected
 
-stt_candidates:
-  - deepgram
-  - speechmatics
-  - azure
-  - gemini
-  - metro-local
+stt:
+  primary: speechmatics
+  fallback:
+    - deepgram
+  speechmatics:
+    language: ar
+    endpointing: external
+    api_key_env: SPEECHMATICS_API_KEY
+  deepgram:
+    model: nova-3
+    language: ar-EG
+    api_key_env: DEEPGRAM_API_KEY
+    keyterm_prompting: true
 
-llm_candidates:
-  - groq
-  - gemini
-  - gemma-local
-  - qwen-local
+llm:
+  primary: groq
+  groq:
+    model: openai/gpt-oss-120b
+    fallback_model: openai/gpt-oss-20b
+    api_key_env: GROQ_API_KEY
 
-tts_candidates:
-  - azure-salma
-  - azure-shakir
-  - gemini-audio
-  - elevenlabs
-  - voicetut
+tts:
+  primary: azure
+  azure:
+    locale: ar-EG
+    voice: ar-EG-ShakirNeural
+    sample_rate_hz: 16000
+    key_env: AZURE_SPEECH_KEY
+    region_env: AZURE_SPEECH_REGION
 
-embedding_candidates:
-  - multilingual-e5-small
+embedding:
+  provider: multilingual_e5_onnx
+  model_id: intfloat/multilingual-e5-small
+  revision: 614241f
+  dimension: 384
+  max_tokens: 512
+
+retrieval:
+  lexical_top_k: 12
+  dense_top_k: 12
+  final_top_k: 5
+  rrf_k: 60

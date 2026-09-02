@@ -41,6 +41,11 @@ class RealtimeRuntimeConfig(StrictModel):
     mock_response_volume: float = Field(default=0.08, ge=0.01, le=0.25)
 
 
+class ConversationRuntimeConfig(StrictModel):
+    memory_max_turns: int = Field(default=10, ge=1, le=100)
+    memory_ttl_seconds: float = Field(default=300.0, ge=0.0, le=86400.0)
+
+
 class RuntimeConfig(StrictModel):
     app_name: str
     environment: Literal["development", "test", "production"]
@@ -49,14 +54,78 @@ class RuntimeConfig(StrictModel):
     development_platform: Literal["laptop", "raspberry_pi"]
     audio: AudioRuntimeConfig
     realtime: RealtimeRuntimeConfig
+    conversation: ConversationRuntimeConfig = ConversationRuntimeConfig()
 
 
-class ProviderCandidatesConfig(StrictModel):
-    selection_status: Literal["benchmark_pending", "selected"]
-    stt_candidates: list[str]
-    llm_candidates: list[str]
-    tts_candidates: list[str]
-    embedding_candidates: list[str]
+class SpeechmaticsProviderConfig(StrictModel):
+    language: str = "ar"
+    endpointing: Literal["external"] = "external"
+    api_key_env: str = "SPEECHMATICS_API_KEY"
+
+
+class DeepgramProviderConfig(StrictModel):
+    model: str = "nova-3"
+    language: str = "ar-EG"
+    api_key_env: str = "DEEPGRAM_API_KEY"
+    keyterm_prompting: bool = True
+
+
+class STTProviderConfig(StrictModel):
+    primary: Literal["speechmatics", "deepgram"] = "speechmatics"
+    fallback: list[Literal["speechmatics", "deepgram"]] = ["deepgram"]
+    speechmatics: SpeechmaticsProviderConfig = SpeechmaticsProviderConfig()
+    deepgram: DeepgramProviderConfig = DeepgramProviderConfig()
+
+
+class GroqProviderConfig(StrictModel):
+    model: str = "openai/gpt-oss-120b"
+    fallback_model: str = "openai/gpt-oss-20b"
+    api_key_env: str = "GROQ_API_KEY"
+
+
+class LLMProviderConfig(StrictModel):
+    primary: Literal["groq"] = "groq"
+    groq: GroqProviderConfig = GroqProviderConfig()
+
+
+class AzureTTSProviderConfig(StrictModel):
+    locale: str = "ar-EG"
+    voice: str = "ar-EG-ShakirNeural"
+    sample_rate_hz: int = Field(default=16000, ge=8000, le=48000)
+    key_env: str = "AZURE_SPEECH_KEY"
+    region_env: str = "AZURE_SPEECH_REGION"
+
+
+class TTSProviderConfig(StrictModel):
+    primary: Literal["azure"] = "azure"
+    azure: AzureTTSProviderConfig = AzureTTSProviderConfig()
+
+
+class EmbeddingProviderConfig(StrictModel):
+    provider: Literal["multilingual_e5_onnx"] = "multilingual_e5_onnx"
+    model_id: str = "intfloat/multilingual-e5-small"
+    revision: str = "614241f"
+    dimension: int = Field(default=384, ge=1)
+    max_tokens: int = Field(default=512, ge=1)
+
+
+class RetrievalConfig(StrictModel):
+    lexical_top_k: int = Field(default=12, ge=1)
+    dense_top_k: int = Field(default=12, ge=1)
+    final_top_k: int = Field(default=5, ge=1)
+    rrf_k: int = Field(default=60, ge=1)
+
+
+class ProviderConfig(StrictModel):
+    selection_status: Literal["phase3_baseline_selected"]
+    stt: STTProviderConfig
+    llm: LLMProviderConfig
+    tts: TTSProviderConfig
+    embedding: EmbeddingProviderConfig
+    retrieval: RetrievalConfig
+
+
+ProviderCandidatesConfig = ProviderConfig
 
 
 class PersonaConfig(StrictModel):
@@ -64,10 +133,12 @@ class PersonaConfig(StrictModel):
     dialect: str
     english_priority: Literal["secondary"]
     response_style: Literal["concise_spoken"]
+    male_voice_required: bool = True
+    ground_event_claims_only: bool = True
     max_default_sentences: int = Field(default=3, ge=1, le=5)
 
 
 class ProjectConfigs(StrictModel):
     runtime: RuntimeConfig
-    providers: ProviderCandidatesConfig
+    providers: ProviderConfig
     persona: PersonaConfig

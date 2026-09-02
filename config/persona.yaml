@@ -2,4 +2,6 @@ primary_language: ar-EG
 dialect: Egyptian Arabic
 english_priority: secondary
 response_style: concise_spoken
+male_voice_required: true
+ground_event_claims_only: true
 max_default_sentences: 3

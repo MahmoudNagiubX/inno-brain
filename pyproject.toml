@@ -9,11 +9,19 @@ description = "Egyptian-Arabic-first AI and voice brain for the Innovatronics ev
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
+    "azure-cognitiveservices-speech==1.51.2",
+    "deepgram-sdk>=6.1.1,<8",
+    "huggingface-hub>=0.34,<1",
     "numpy>=2.0,<3",
+    "onnxruntime==1.24.3",
+    "openai>=1.74,<3",
     "pipecat-ai==1.8.1",
     "pydantic>=2.13,<3",
     "PyYAML>=6,<7",
     "sounddevice>=0.5,<1",
+    "speechmatics-voice==0.2.8",
+    "sqlite-vec==0.1.9",
+    "tokenizers>=0.21,<1",
 ]
 
 [project.optional-dependencies]
