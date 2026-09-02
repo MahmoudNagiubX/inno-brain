@@ -1,3 +1,4 @@
+import hashlib
 import re
 import stat
 import unicodedata
@@ -65,38 +66,116 @@ def validate_archive_structure(
 
     try:
         with zipfile.ZipFile(archive_path) as archive:
-            infos = archive.infolist()
-            if len(infos) > limits.max_file_count:
-                raise EventIntegrityError("event archive exceeds the file-count quota")
-            names: list[str] = []
-            collision_keys: set[str] = set()
-            total_uncompressed = 0
-            for info in infos:
-                name = _validate_info(info)
-                collision_key = unicodedata.normalize("NFC", name).casefold()
-                if collision_key in collision_keys:
-                    raise EventIntegrityError(f"archive path collision: {name}")
-                collision_keys.add(collision_key)
-                names.append(name)
-                if info.file_size > limits.max_single_file_bytes:
-                    raise EventIntegrityError(f"archive member exceeds single-file quota: {name}")
-                total_uncompressed += info.file_size
-            if total_uncompressed > limits.max_uncompressed_bytes:
-                raise EventIntegrityError("event archive exceeds total-uncompressed quota")
-            if declared_paths is not None:
-                declared = {_normalized_member_name(path) for path in declared_paths}
-                if set(names) != declared:
-                    missing = sorted(declared - set(names))
-                    extra = sorted(set(names) - declared)
-                    raise EventIntegrityError(
-                        "archive members do not match declaration; "
-                        f"missing={missing}, extra={extra}"
-                    )
-            return infos
+            return validate_open_archive_structure(
+                archive,
+                archive_bytes=archive_bytes,
+                limits=limits,
+                declared_paths=declared_paths,
+            )
     except EventIntegrityError:
         raise
     except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
         raise EventIntegrityError(f"invalid event archive: {archive_path}") from exc
+
+
+def validate_open_archive_structure(
+    archive: zipfile.ZipFile,
+    *,
+    archive_bytes: int,
+    limits: ArchiveLimits | None = None,
+    declared_paths: Iterable[str] | None = None,
+) -> list[zipfile.ZipInfo]:
+    limits = limits or ArchiveLimits()
+    if archive_bytes > limits.max_archive_bytes:
+        raise EventIntegrityError("event archive exceeds the archive-size quota")
+    try:
+        infos = archive.infolist()
+        if len(infos) > limits.max_file_count:
+            raise EventIntegrityError("event archive exceeds the file-count quota")
+        names: list[str] = []
+        collision_keys: set[str] = set()
+        total_uncompressed = 0
+        for info in infos:
+            name = _validate_info(info)
+            collision_key = unicodedata.normalize("NFC", name).casefold()
+            if collision_key in collision_keys:
+                raise EventIntegrityError(f"archive path collision: {name}")
+            collision_keys.add(collision_key)
+            names.append(name)
+            if info.file_size > limits.max_single_file_bytes:
+                raise EventIntegrityError(f"archive member exceeds single-file quota: {name}")
+            total_uncompressed += info.file_size
+        if total_uncompressed > limits.max_uncompressed_bytes:
+            raise EventIntegrityError("event archive exceeds total-uncompressed quota")
+        if declared_paths is not None:
+            declared = {_normalized_member_name(path) for path in declared_paths}
+            if set(names) != declared:
+                missing = sorted(declared - set(names))
+                extra = sorted(set(names) - declared)
+                raise EventIntegrityError(
+                    "archive members do not match declaration; "
+                    f"missing={missing}, extra={extra}"
+                )
+        return infos
+    except EventIntegrityError:
+        raise
+    except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise EventIntegrityError("invalid open event archive") from exc
+
+
+def extract_open_verified_archive(
+    archive: zipfile.ZipFile,
+    infos: Iterable[zipfile.ZipInfo],
+    destination: Path | str,
+    *,
+    authenticated_members: Mapping[str, tuple[int, str]],
+) -> list[Path]:
+    """Extract and re-hash members from the same archive object that was verified."""
+
+    destination = Path(destination)
+    if destination.exists() and any(destination.iterdir()):
+        raise EventIntegrityError("archive extraction destination must be empty")
+    destination.mkdir(parents=True, exist_ok=True)
+    root = destination.resolve()
+    extracted: list[Path] = []
+    try:
+        for info in infos:
+            expected = authenticated_members.get(info.filename)
+            if expected is None:
+                raise EventIntegrityError(
+                    f"archive member lacks authenticated metadata: {info.filename}"
+                )
+            expected_size, expected_sha256 = expected
+            relative = Path(*PurePosixPath(info.filename).parts)
+            target = (destination / relative).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError as exc:
+                raise EventIntegrityError(
+                    f"archive member escapes staging: {info.filename}"
+                ) from exc
+            target.parent.mkdir(parents=True, exist_ok=True)
+            digest = hashlib.sha256()
+            written = 0
+            with archive.open(info, "r") as source, target.open("xb") as output:
+                while chunk := source.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > expected_size:
+                        raise EventIntegrityError(
+                            f"archive member grew while extracting: {info.filename}"
+                        )
+                    digest.update(chunk)
+                    output.write(chunk)
+            if written != expected_size:
+                raise EventIntegrityError(f"archive member size changed: {info.filename}")
+            if digest.hexdigest() != expected_sha256:
+                raise EventIntegrityError(f"archive member SHA-256 changed: {info.filename}")
+            extracted.append(target)
+    except EventIntegrityError:
+        raise
+    except (OSError, zipfile.BadZipFile, RuntimeError, ValueError) as exc:
+        raise EventIntegrityError("could not safely extract verified event archive") from exc
+    return extracted
 
 
 def extract_validated_archive(
@@ -199,7 +278,9 @@ def write_event_archive(
 
 __all__ = [
     "ArchiveLimits",
+    "extract_open_verified_archive",
     "extract_validated_archive",
+    "validate_open_archive_structure",
     "validate_archive_structure",
     "write_event_archive",
 ]

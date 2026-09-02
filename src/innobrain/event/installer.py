@@ -14,7 +14,11 @@ from innobrain.knowledge.vector_store import VectorStore
 from .authoring import load_authoring_bundle
 from .embeddings import load_embedding_matrix
 from .errors import EventInstallError
-from .validation import PackageVerificationPolicy, VerifiedPackage, verify_event_package
+from .validation import (
+    PackageVerificationPolicy,
+    VerifiedPackage,
+    open_verified_event_package,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,7 +273,10 @@ def install_event_package(
     installed_root = data_root / "events" / "installed"
     policy = verification_policy or PackageVerificationPolicy(environment="production")
     try:
-        verified = verify_event_package(archive_path, policy=policy, extract_to=staging)
+        with open_verified_event_package(archive_path, policy=policy) as verified_archive:
+            verified_archive.extract_to(staging)
+            verified_archive.copy_source_to(staging / "source.innoevent")
+            verified = verified_archive.package_metadata()
         event_root = installed_root / verified.manifest.event_id / verified.manifest.event_version
         final_root = event_root / verified.manifest.build_id
         if final_root.exists():
@@ -294,7 +301,6 @@ def install_event_package(
                 + "\n",
                 encoding="utf-8",
             )
-        (staging / "source.innoevent").write_bytes(archive_path.read_bytes())
         (staging / "install_report.json").write_text(
             json.dumps(
                 {
