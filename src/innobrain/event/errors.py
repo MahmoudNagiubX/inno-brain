@@ -22,6 +22,10 @@ class EventInstallError(EventPackageError):
     pass
 
 
+class EventDistributionError(EventPackageError):
+    pass
+
+
 class EventActivationError(EventPackageError):
     pass
 
