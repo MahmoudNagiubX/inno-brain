@@ -3,8 +3,8 @@
 **Phase:** 2 — Realtime Conversation Core
 **Branch:** `phase/2-realtime-conversation-core`
 **Status:** `IN_PROGRESS`
-**Last completed task:** Task 4 — Implement strict conversation state machine
-**Next task:** Task 5 — Implement single-session interruptible playback
+**Last completed task:** Task 5 — Implement single-session interruptible playback
+**Next task:** Task 6 — Implement interruption controller and cancellation metrics
 **Development platform:** Windows laptop
 **Primary language:** Egyptian Arabic (`ar-EG`)
 **Pipecat:** 1.8.1 import/model initialization PASS
