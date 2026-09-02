@@ -4162,4 +4162,34 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.0**
+## v1.13 - 2026-09-02
+
+- Executed Phase 4 on `phase/4-dynamic-event-package`, based on Phase 3 HEAD
+  `3e8d65c078dc6e4bd7ee78d6a4177fc9416de097`.
+- Added strict local event authoring, self-contained signed `.innoevent`
+  packages, SHA-256 payload integrity, Ed25519 signatures and safe ZIP
+  verification/extraction.
+- Added builder-only `docling==2.124.0`; Docling and PyTorch remain outside the
+  normal runtime environment.
+- Added E5-aligned 384-token chunking and portable real-E5 float32 matrices;
+  synthetic matrices remain explicitly non-deployable test fixtures.
+- Added target-local SQLite/FTS5/sqlite-vec `0.1.9` compilation, immutable
+  read-only installed databases, registry health checks and source archive
+  preservation.
+- Added atomic active-event activation, idle protection, session-memory reset,
+  zero-leak event switching and explicit rollback.
+- Added optional allowlisted HTTPS distribution for complete `.innoevent`
+  artifacts only; no live document URL ingestion was added.
+- Bounded E5 prefetch succeeded; real Docling conversion and real E5
+  production-like signed Alpha/Beta smoke passed.
+- Phase 4 security matrix passed with 85 tests; full project verification passed
+  with 148 tests, expected builder-only/opt-in skips, Ruff and diff checks.
+- Normal `.venv` import confirmed Docling is not loaded; generated packages,
+  runtime data and private keys are not tracked.
+- Preserved all Phase 1-3 deferred human/provider/Pi/S330 validation debt.
+- Authorized Phase 5 after the automated security, isolation, real builder,
+  activation, switching and rollback gates passed; Phase 5 was not started.
+
+---
+
+**End of Master Plan v1.13**

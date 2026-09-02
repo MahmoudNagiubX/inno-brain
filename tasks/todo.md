@@ -1,34 +1,34 @@
 # Phase 4 Task Checklist
 
-- [ ] Task 0: Safety preflight and branch from Phase 3.
-- [ ] Task 1: Synchronize Phase 4 design, Master Plan and state.
-- [ ] Task 2: Runtime config, cryptography and separate builder dependency boundary.
-- [ ] Task 3: Strict package errors and deterministic manifest models.
-- [ ] Task 4: Strict structured authoring validation.
-- [ ] Task 5: Alpha/Beta local event fixtures.
-- [ ] Task 6: Ed25519 signing and trusted-key verification.
-- [ ] Task 7: Deterministic secure archive writer/verifier.
-- [ ] Task 8: Package integrity and production-policy verifier.
-- [ ] Task 9: Knowledge schema v2 event metadata.
-- [ ] Task 10: Read-only database and open-existing VectorStore.
-- [ ] Checkpoint A: Package contract and target knowledge tests pass.
-- [ ] Task 11: Builder asset-prefetch isolation.
-- [ ] Task 12: Lazy Docling local parser.
-- [ ] Task 13: Structure-aware 384-token chunker.
-- [ ] Task 14: Portable real/test embedding matrix.
-- [ ] Task 15: Deterministic build ID and report.
-- [ ] Task 16: Full `.innoevent` builder and build CLI.
-- [ ] Checkpoint B: Builder tests and runtime Docling isolation pass.
-- [ ] Task 17: Target-local installer.
-- [ ] Task 18: Installed registry and health.
-- [ ] Task 19: Atomic activation and explicit rollback.
-- [ ] Task 20: Active runtime context and session reset.
-- [ ] Task 21: Two-event exact/RAG no-leakage E2E.
-- [ ] Task 22: Optional allowlisted HTTPS package distribution.
-- [ ] Task 23: Runtime CLI operations.
-- [ ] Checkpoint C: Install, switching, rollback and distribution tests pass.
-- [ ] Task 24: Bounded real Docling/E5 smoke or explicit deferral.
-- [ ] Task 25: Phase 4 security/failure matrix checkpoint.
-- [ ] Task 26: Full project and isolation verification.
-- [ ] Task 27: Phase 4 report, Master Plan v1.13, README and Phase 5 authorization.
-- [ ] Task 28: Fresh final verification, commit, push and stop before Phase 5.
+- [x] Task 0: Safety preflight and branch from Phase 3.
+- [x] Task 1: Synchronize Phase 4 design, Master Plan and state.
+- [x] Task 2: Runtime config, cryptography and separate builder dependency boundary.
+- [x] Task 3: Strict package errors and deterministic manifest models.
+- [x] Task 4: Strict structured authoring validation.
+- [x] Task 5: Alpha/Beta local event fixtures.
+- [x] Task 6: Ed25519 signing and trusted-key verification.
+- [x] Task 7: Deterministic secure archive writer/verifier.
+- [x] Task 8: Package integrity and production-policy verifier.
+- [x] Task 9: Knowledge schema v2 event metadata.
+- [x] Task 10: Read-only database and open-existing VectorStore.
+- [x] Checkpoint A: Package contract and target knowledge tests pass.
+- [x] Task 11: Builder asset-prefetch isolation.
+- [x] Task 12: Lazy Docling local parser.
+- [x] Task 13: Structure-aware 384-token chunker.
+- [x] Task 14: Portable real/test embedding matrix.
+- [x] Task 15: Deterministic build ID and report.
+- [x] Task 16: Full `.innoevent` builder and build CLI.
+- [x] Checkpoint B: Builder tests and runtime Docling isolation pass.
+- [x] Task 17: Target-local installer.
+- [x] Task 18: Installed registry and health.
+- [x] Task 19: Atomic activation and explicit rollback.
+- [x] Task 20: Active runtime context and session reset.
+- [x] Task 21: Two-event exact/RAG no-leakage E2E.
+- [x] Task 22: Optional allowlisted HTTPS package distribution.
+- [x] Task 23: Runtime CLI operations.
+- [x] Checkpoint C: Install, switching, rollback and distribution tests pass.
+- [x] Task 24: Bounded real Docling/E5 smoke or explicit deferral.
+- [x] Task 25: Phase 4 security/failure matrix checkpoint.
+- [x] Task 26: Full project and isolation verification.
+- [x] Task 27: Phase 4 report, Master Plan v1.13, README and Phase 5 authorization.
+- [x] Task 28: Fresh final verification, commit, push and stop before Phase 5.
