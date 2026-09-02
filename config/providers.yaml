@@ -1,0 +1,24 @@
+selection_status: benchmark_pending
+
+stt_candidates:
+  - deepgram
+  - speechmatics
+  - azure
+  - gemini
+  - metro-local
+
+llm_candidates:
+  - groq
+  - gemini
+  - gemma-local
+  - qwen-local
+
+tts_candidates:
+  - azure-salma
+  - azure-shakir
+  - gemini-audio
+  - elevenlabs
+  - voicetut
+
+embedding_candidates:
+  - multilingual-e5-small

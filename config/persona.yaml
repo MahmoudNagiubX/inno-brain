@@ -1,0 +1,5 @@
+primary_language: ar-EG
+dialect: Egyptian Arabic
+english_priority: secondary
+response_style: concise_spoken
+max_default_sentences: 3

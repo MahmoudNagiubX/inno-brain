@@ -1,0 +1,15 @@
+app_name: InnoBrain
+environment: development
+primary_locale: ar-EG
+secondary_locale: en
+development_platform: laptop
+
+audio:
+  backend: sounddevice
+  input_device: null
+  output_device: null
+  target_sample_rate_hz: 16000
+  channels: 1
+  frame_ms: 20
+  software_aec_enabled: false
+  software_ns_enabled: false
