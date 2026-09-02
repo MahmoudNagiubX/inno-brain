@@ -1,0 +1,35 @@
+language: ar-EG
+purpose: phase1_laptop_audio_validation
+
+phrases:
+  - id: greeting
+    category: pure_egyptian
+    text: "إزيك؟ عامل إيه؟"
+
+  - id: event_schedule
+    category: egyptian_event
+    text: "ممكن تقولي البرنامج بتاع النهارده؟"
+
+  - id: session_time
+    category: code_switch
+    text: "الـsession بتاعة الذكاء الاصطناعي الساعة كام؟"
+
+  - id: registration
+    category: code_switch
+    text: "ممكن تقولي الـregistration فين؟"
+
+  - id: hesitation
+    category: hesitation
+    text: "بص أنا عايز أعرف... ثانية بس بفكر... أيوه، الـsession اللي بعد الضهر."
+
+  - id: correction
+    category: correction
+    text: "لا استنى، قصدي بكرة مش النهارده."
+
+  - id: location
+    category: code_switch
+    text: "ممكن توريني الـmain stage فين؟"
+
+  - id: long_natural
+    category: natural_egyptian
+    text: "أنا أول مرة أجي الإيفنت ومش عارف أبدأ منين، ممكن تقولي إيه أهم حاجة أروحها الأول؟"
