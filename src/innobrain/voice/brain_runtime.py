@@ -74,17 +74,34 @@ class VoiceBrainRuntime:
 
     async def cancel_response(self) -> None:
         task = self._response_task
+        cancellations = []
         if task is not None and not task.done():
             task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            cancellations.append(self._await_cancelled_task(task))
+        cancel_llm = getattr(self.orchestrator, "cancel", None)
+        if cancel_llm is not None:
+            cancellations.append(self._invoke_cancel(cancel_llm))
         cancel_tts = getattr(self.tts, "cancel", None)
         if cancel_tts is not None:
-            result = cancel_tts()
+            cancellations.append(self._invoke_cancel(cancel_tts))
+        if cancellations:
+            await asyncio.gather(*cancellations)
+
+    @staticmethod
+    async def _await_cancelled_task(task: asyncio.Task[object]) -> None:
+        try:
+            await asyncio.wait_for(task, timeout=0.25)
+        except (asyncio.CancelledError, TimeoutError):
+            pass
+
+    @staticmethod
+    async def _invoke_cancel(callback: object) -> None:
+        try:
+            result = callback()  # type: ignore[operator]
             if inspect.isawaitable(result):
-                await result
+                await asyncio.wait_for(result, timeout=0.25)
+        except (asyncio.CancelledError, TimeoutError):
+            pass
 
     async def handle_user_turn_started(self) -> int:
         if self.machine.state is ConversationState.IDLE:

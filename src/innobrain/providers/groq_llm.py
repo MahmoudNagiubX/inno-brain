@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import os
 from collections.abc import AsyncIterator, Sequence
@@ -78,7 +79,9 @@ class GroqLLMProvider:
                 if emitted:
                     raise ProviderUnavailable("Groq stream failed after emitting text") from exc
             finally:
+                active = self._active_stream
                 self._active_stream = None
+                await asyncio.shield(self._close_stream(active))
         raise ProviderUnavailable(
             "Groq primary and fallback models are unavailable"
         ) from last_error
@@ -86,6 +89,10 @@ class GroqLLMProvider:
     async def cancel(self) -> None:
         active = self._active_stream
         self._active_stream = None
+        await self._close_stream(active)
+
+    @staticmethod
+    async def _close_stream(active: object | None) -> None:
         if active is None:
             return
         close = getattr(active, "aclose", None) or getattr(active, "close", None)

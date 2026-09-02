@@ -40,7 +40,7 @@ async def test_speaking_interruption_stops_playback_and_recovers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_speaking_interruption_cancels_response_before_playback() -> None:
+async def test_speaking_interruption_stops_playback_before_cancelling_response() -> None:
     machine = speaking_machine()
     playback = FakePlayback()
     calls = []
@@ -63,7 +63,44 @@ async def test_speaking_interruption_cancels_response_before_playback() -> None:
 
     await controller.handle_user_turn_started()
 
-    assert calls == ["response", "playback"]
+    assert calls == ["playback", "response"]
+
+
+@pytest.mark.asyncio
+async def test_slow_remote_cancellation_cannot_delay_local_playback_stop() -> None:
+    import asyncio
+
+    machine = speaking_machine()
+    playback = FakePlayback()
+    remote_started = asyncio.Event()
+    release_remote = asyncio.Event()
+    calls = []
+
+    async def cancel_response() -> None:
+        calls.append("remote_started")
+        remote_started.set()
+        await release_remote.wait()
+        calls.append("remote_finished")
+
+    async def cancel_playback() -> None:
+        calls.append("playback")
+        await FakePlayback.cancel(playback)
+
+    playback.cancel = cancel_playback
+    controller = InterruptionController(
+        machine,
+        playback,
+        response_cancel_callback=cancel_response,
+    )
+
+    task = asyncio.create_task(controller.handle_user_turn_started())
+    await asyncio.wait_for(remote_started.wait(), timeout=0.1)
+
+    assert calls[:2] == ["playback", "remote_started"]
+    assert playback.cancel_calls == 1
+
+    release_remote.set()
+    await task
 
 
 @pytest.mark.asyncio

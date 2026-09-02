@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -49,3 +50,51 @@ def test_groq_factory_requires_credential_only_when_constructed(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(MissingProviderCredential):
         GroqLLMProvider()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_consumer_explicitly_closes_active_groq_stream():
+    class BlockingStream:
+        def __init__(self):
+            self.first_emitted = asyncio.Event()
+            self.release = asyncio.Event()
+            self.closed = False
+            self.index = 0
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self.index == 0:
+                self.index += 1
+                self.first_emitted.set()
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(delta={"content": "أول"})]
+                )
+            await self.release.wait()
+            raise StopAsyncIteration
+
+        async def aclose(self):
+            self.closed = True
+            self.release.set()
+
+    stream = BlockingStream()
+
+    class BlockingCompletions:
+        async def create(self, **_kwargs):
+            return stream
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=BlockingCompletions()))
+    provider = GroqLLMProvider(client=client)
+
+    async def consume():
+        async for _part in provider.stream([ChatMessage("user", "hello")], (), None):
+            pass
+
+    task = asyncio.create_task(consume())
+    await asyncio.wait_for(stream.first_emitted.wait(), timeout=0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert stream.closed is True

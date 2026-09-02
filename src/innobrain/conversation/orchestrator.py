@@ -124,6 +124,16 @@ class GroundedOrchestrator:
     async def respond(self, user_text: str, **kwargs: object) -> BrainResult:
         return await self.answer(user_text, **kwargs)  # type: ignore[arg-type]
 
+    async def cancel(self) -> None:
+        if self.llm_provider is None:
+            return
+        cancel = getattr(self.llm_provider, "cancel", None)
+        if cancel is None:
+            return
+        result = cancel()
+        if inspect.isawaitable(result):
+            await result
+
     def commit_delivered(
         self,
         user_text: str,

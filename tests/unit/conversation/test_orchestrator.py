@@ -29,6 +29,7 @@ class FakeLLM:
         self.text = text
         self.error = error
         self.calls = 0
+        self.cancel_calls = 0
         self.messages = ()
 
     async def _stream(self):
@@ -40,6 +41,9 @@ class FakeLLM:
         self.calls += 1
         self.messages = messages
         return self._stream()
+
+    async def cancel(self):
+        self.cancel_calls += 1
 
 
 def pack_with_evidence(text="known fact"):
@@ -102,3 +106,17 @@ async def test_untrusted_evidence_is_not_system_policy_and_memory_needs_delivery
     assert orchestrator.memory.recent_turns() == ()
     await orchestrator.answer("question", delivery_confirmed=True)
     assert len(orchestrator.memory.recent_turns()) == 1
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_explicitly_cancels_active_llm_provider():
+    llm = FakeLLM()
+    orchestrator = GroundedOrchestrator(
+        FakeResolver(),
+        FakeRetriever(pack_with_evidence()),
+        llm_provider=llm,
+    )
+
+    await orchestrator.cancel()
+
+    assert llm.cancel_calls == 1
