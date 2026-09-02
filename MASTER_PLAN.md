@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.12
-> **Date:** 2026-09-01
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 authorized and designed but not started
+> **Version:** 1.13
+> **Date:** 2026-09-02
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Phase 5 authorized but not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -4168,6 +4168,7 @@ Pepper realtime AI:
   `3e8d65c078dc6e4bd7ee78d6a4177fc9416de097`.
 - Recorded final Phase 4 branch HEAD
   `561c7fb4715a7d44275bca804ba3f195e6959f27`.
+- Recorded final Phase 4 state as `PHASE_4_COMPLETE`.
 - Added strict local event authoring, self-contained signed `.innoevent`
   packages, SHA-256 payload integrity, Ed25519 signatures and safe ZIP
   verification/extraction.
@@ -4184,12 +4185,15 @@ Pepper realtime AI:
   artifacts only; no live document URL ingestion was added.
 - Bounded E5 prefetch succeeded; real Docling conversion and real E5
   production-like signed Alpha/Beta smoke passed.
-- Phase 4 security matrix passed with 85 tests; full project verification passed
-  with 148 tests, expected builder-only/opt-in skips, Ruff and diff checks.
+- Phase 4 security matrix passed with `85 passed / 1 expected security skip`;
+  full project verification passed with `148 passed / 2 expected skips`, plus
+  Ruff and diff checks.
 - Normal `.venv` import confirmed Docling is not loaded; generated packages,
   runtime data and private keys are not tracked.
 - Preserved all Phase 1-3 deferred human/provider/Pi/S330 validation debt.
-- Authorized Phase 5 after the automated security, isolation, real builder,
+- Successful real Docling `2.124.0` + real E5 signed smoke verified target-local
+  installation, RAG, zero-leak switching and rollback.
+- Phase 5 authorized after the automated security, isolation, real builder,
   activation, switching and rollback gates passed; Phase 5 was not started.
 
 ---
