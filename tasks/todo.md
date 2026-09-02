@@ -1,0 +1,34 @@
+# Phase 3 Task Checklist
+
+- [ ] Task 0: Safety preflight and branch from Phase 2.
+- [ ] Task 1: Synchronize Phase 3 design, Master Plan and state.
+- [ ] Task 2: Dependencies, provider config and secret-safe environment contract.
+- [ ] Task 3: Provider errors, availability and fallback registry.
+- [ ] Checkpoint A: config/dependency/registry verification.
+- [ ] Task 4: Arabic normalization and evidence models.
+- [ ] Task 5: SQLite connection, schema, FTS5 and structured repository.
+- [ ] Task 6: Deterministic fixture event and DB builder.
+- [ ] Checkpoint B: fixture DB, exact routes and FTS5 verification.
+- [ ] Task 7: Multilingual E5 ONNX assets and embedding provider.
+- [ ] Task 8: sqlite-vec store and rebuildable vector index.
+- [ ] Task 9: Hybrid retrieval and RRF.
+- [ ] Task 10: Structured exact resolver.
+- [ ] Task 11: RAG evaluation set and benchmark.
+- [ ] Checkpoint C: vector health and RAG metric gates.
+- [ ] Task 12: Ten-turn session memory and delivery-safe commit.
+- [ ] Task 13: Grounding policy, persona and sentence chunker.
+- [ ] Task 14: Grounded orchestrator and local degraded behavior.
+- [ ] Checkpoint D: grounding and degradation verification.
+- [ ] Task 15: Groq LLM adapter.
+- [ ] Task 16: Speechmatics primary STT adapter.
+- [ ] Task 17: Deepgram fallback STT adapter.
+- [ ] Task 18: Azure Shakir TTS adapter.
+- [ ] Checkpoint E: provider fake/conditional smoke verification.
+- [ ] Task 19: Interruptible PCM streaming playback.
+- [ ] Task 20: PCM observer hook and VoiceBrainRuntime.
+- [ ] Checkpoint F: synthetic voice/brain/cancellation flow.
+- [ ] Task 21: End-to-end text demo.
+- [ ] Task 22: Non-interactive provider smoke.
+- [ ] Task 23: Full RAG and automated verification gate.
+- [ ] Task 24: Update Final Voice Acceptance tracker.
+- [ ] Task 25: Report, Master Plan v1.11, README, push and stop.
