@@ -17,6 +17,15 @@ def test_load_all_configs_uses_egyptian_first_laptop_defaults() -> None:
     assert configs.runtime.audio.output_device is None
     assert configs.runtime.audio.software_aec_enabled is False
     assert configs.runtime.audio.software_ns_enabled is False
+    assert configs.runtime.realtime.audio_queue_max_chunks == 100
+    assert configs.runtime.realtime.vad.confidence == 0.7
+    assert configs.runtime.realtime.vad.start_secs == 0.2
+    assert configs.runtime.realtime.vad.stop_secs == 0.2
+    assert configs.runtime.realtime.vad.min_volume == 0.6
+    assert configs.runtime.realtime.smart_turn.enabled is True
+    assert configs.runtime.realtime.smart_turn.wait_for_transcript is False
+    assert configs.runtime.realtime.smart_turn.cpu_count == 1
+    assert configs.runtime.realtime.mock_response_tone_hz == 440.0
 
 
 def test_unknown_runtime_keys_are_rejected(tmp_path: Path) -> None:

@@ -3,8 +3,8 @@
 **Phase:** 2 — Realtime Conversation Core
 **Branch:** `phase/2-realtime-conversation-core`
 **Status:** `IN_PROGRESS`
-**Last completed task:** Task 2 — Pin/install Pipecat 1.8.1 + dependency smoke
-**Next task:** Task 3 — Add realtime/VAD/Smart-Turn config
+**Last completed task:** Task 3 — Add realtime/VAD/Smart-Turn config
+**Next task:** Task 4 — Implement strict conversation state machine
 **Development platform:** Windows laptop
 **Primary language:** Egyptian Arabic (`ar-EG`)
 **Pipecat:** 1.8.1 import/model initialization PASS

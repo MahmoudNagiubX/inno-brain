@@ -13,3 +13,22 @@ audio:
   frame_ms: 20
   software_aec_enabled: false
   software_ns_enabled: false
+
+realtime:
+  audio_queue_max_chunks: 100
+
+  vad:
+    confidence: 0.7
+    start_secs: 0.2
+    stop_secs: 0.2
+    min_volume: 0.6
+
+  smart_turn:
+    enabled: true
+    wait_for_transcript: false
+    cpu_count: 1
+
+  mock_think_delay_ms: 150
+  mock_response_tone_hz: 440.0
+  mock_response_duration_secs: 6.0
+  mock_response_volume: 0.08
