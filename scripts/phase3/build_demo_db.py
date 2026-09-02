@@ -1,6 +1,7 @@
 """Build the deterministic Phase 3 demo event database without a vec index."""
 
 import argparse
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -10,6 +11,7 @@ import yaml
 
 from innobrain.knowledge.database import connect_event_db, initialize_schema
 from innobrain.knowledge.normalize import normalize_arabic_retrieval
+from innobrain.knowledge.vector_store import VectorStore
 
 DEFAULT_FIXTURE = Path(__file__).parents[2] / "fixtures" / "phase3" / "demo_event.yaml"
 DEFAULT_DB = Path(__file__).parents[2] / "artifacts" / "phase3" / "demo_event.sqlite3"
@@ -176,12 +178,46 @@ def build_demo_db(fixture_path: Path = DEFAULT_FIXTURE, db_path: Path = DEFAULT_
     return db_path
 
 
+def build_demo_vector_index(db_path: Path, embedding_provider: Any) -> None:
+    """Embed canonical chunks and rebuild the local vec0 derivative."""
+
+    conn = connect_event_db(db_path)
+    try:
+        rows = conn.execute("SELECT id, text FROM chunks ORDER BY id").fetchall()
+
+        async def embed_rows() -> list[tuple[int, list[float]]]:
+            return [
+                (int(row["id"]), list(await embedding_provider.embed_passage(row["text"])))
+                for row in rows
+            ]
+
+        VectorStore(conn).rebuild(asyncio.run(embed_rows()))
+    finally:
+        conn.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument(
+        "--build-vectors",
+        action="store_true",
+        help="build the vec0 derivative from locally available E5 assets",
+    )
+    parser.add_argument(
+        "--download-model",
+        action="store_true",
+        help="allow an explicit Hugging Face model download for --build-vectors",
+    )
     args = parser.parse_args()
-    print(build_demo_db(args.fixture, args.db))
+    db_path = build_demo_db(args.fixture, args.db)
+    if args.build_vectors:
+        from innobrain.knowledge.e5_onnx import MultilingualE5OnnxProvider
+
+        provider = MultilingualE5OnnxProvider(download_assets=args.download_model)
+        build_demo_vector_index(db_path, provider)
+    print(db_path)
 
 
 if __name__ == "__main__":
