@@ -26,6 +26,15 @@ def test_load_all_configs_uses_egyptian_first_laptop_defaults() -> None:
     assert configs.runtime.realtime.smart_turn.wait_for_transcript is False
     assert configs.runtime.realtime.smart_turn.cpu_count == 1
     assert configs.runtime.realtime.mock_response_tone_hz == 440.0
+    assert configs.runtime.events.data_root == "runtime_data"
+    assert configs.runtime.events.require_signature_in_production is True
+    assert configs.runtime.events.allow_unsigned_development is False
+    assert configs.runtime.events.allow_remote_package_fetch is False
+    assert configs.runtime.events.allowed_remote_hosts == []
+    assert configs.runtime.events.max_archive_bytes == 536_870_912
+    assert configs.runtime.events.max_file_count == 2000
+    assert configs.runtime.events.max_uncompressed_bytes == 1_073_741_824
+    assert configs.runtime.events.max_single_file_bytes == 268_435_456
 
 
 def test_unknown_runtime_keys_are_rejected(tmp_path: Path) -> None:

@@ -36,3 +36,14 @@ realtime:
 conversation:
   memory_max_turns: 10
   memory_ttl_seconds: 300
+
+events:
+  data_root: runtime_data
+  require_signature_in_production: true
+  allow_unsigned_development: false
+  allow_remote_package_fetch: false
+  allowed_remote_hosts: []
+  max_archive_bytes: 536870912
+  max_file_count: 2000
+  max_uncompressed_bytes: 1073741824
+  max_single_file_bytes: 268435456

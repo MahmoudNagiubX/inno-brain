@@ -46,6 +46,18 @@ class ConversationRuntimeConfig(StrictModel):
     memory_ttl_seconds: float = Field(default=300.0, ge=0.0, le=86400.0)
 
 
+class EventPackageRuntimeConfig(StrictModel):
+    data_root: str = "runtime_data"
+    require_signature_in_production: bool = True
+    allow_unsigned_development: bool = False
+    allow_remote_package_fetch: bool = False
+    allowed_remote_hosts: list[str] = []
+    max_archive_bytes: int = 536_870_912
+    max_file_count: int = 2000
+    max_uncompressed_bytes: int = 1_073_741_824
+    max_single_file_bytes: int = 268_435_456
+
+
 class RuntimeConfig(StrictModel):
     app_name: str
     environment: Literal["development", "test", "production"]
@@ -55,6 +67,7 @@ class RuntimeConfig(StrictModel):
     audio: AudioRuntimeConfig
     realtime: RealtimeRuntimeConfig
     conversation: ConversationRuntimeConfig = ConversationRuntimeConfig()
+    events: EventPackageRuntimeConfig = EventPackageRuntimeConfig()
 
 
 class SpeechmaticsProviderConfig(StrictModel):
