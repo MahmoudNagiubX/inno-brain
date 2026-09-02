@@ -22,6 +22,18 @@
 The uncontrolled speaking attempt is diagnostic evidence only.
 Do not tune VAD/Smart Turn from it.
 
+## Phase 3 Deferred Voice/Provider Acceptance
+
+- [ ] Egyptian STT quality on natural speech.
+- [ ] Arabic/English code-switch STT.
+- [ ] Event glossary/proper-name STT.
+- [ ] `ar-EG-ShakirNeural` subjective male Egyptian naturalness.
+- [ ] Real TTS first-audio latency.
+- [ ] End-to-end spoken exact-fact Q&A.
+- [ ] End-to-end spoken RAG Q&A.
+- [ ] Real-TTS barge-in.
+- [ ] Memory/context after spoken interruption.
+
 ## Final Acceptance Tests
 
 Run on the completed system:

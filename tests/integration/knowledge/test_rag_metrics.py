@@ -2,7 +2,6 @@ from pathlib import Path
 
 from scripts.phase3.benchmark_rag import run_benchmark
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
