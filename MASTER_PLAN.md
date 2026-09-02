@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.13
+> **Version:** 1.14
 > **Date:** 2026-09-02
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Phase 5 authorized but not started
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Phase 5 implementation not started; Gate 5A pre-voice audit in progress
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -1748,9 +1748,10 @@ License note reported during bootstrap:
 **Next authorized milestone:** Phase 1 — Foundation + Hardware Validation.
 
 
-# 32. Six Implementation Phases
+# 32. Seven Implementation Phases
 
-The project should remain six major phases.
+The approved roadmap has seven major phases. Phase 5 proves the complete
+conversation runtime before Robot/Screen/ROS integration begins in Phase 6.
 
 ## PHASE 1 — Foundation + Hardware Validation
 
@@ -2280,7 +2281,7 @@ The Phase 2 branch must be the base for Phase 3 because Phase 2 is not assumed t
 
 Phase 3 turns the Phase 2 realtime interaction core into a useful Egyptian-Arabic event assistant.
 
-The implementation is production-oriented, but production/event readiness is NOT declared in Phase 3. Final release readiness still requires provider validation with real credentials, Final Voice Acceptance, Raspberry Pi/S330 validation, noisy-event tests and Phase 6 hardening.
+The implementation is production-oriented, but production/event readiness is NOT declared in Phase 3. Final release readiness still requires provider validation with real credentials, Final Voice Acceptance, Raspberry Pi/S330 validation, noisy-event tests and Phase 7 hardening.
 
 ## Phase 3 branch and inheritance
 
@@ -3224,7 +3225,7 @@ extensions:
       - extensions/navigation/waypoints.yaml
 ```
 
-Core Phase 4 preserves declared unknown extension payloads and does not execute them. Phase 5 can recognize a navigation extension while keeping package schema 1.x.
+Core Phase 4 preserves declared unknown extension payloads and does not execute them. Phase 6 can recognize a navigation extension while keeping package schema 1.x.
 
 ## Knowledge metadata upgrade
 
@@ -3486,7 +3487,34 @@ Exit:
 - activation failure cannot destroy the previous healthy event.
 
 
-## PHASE 5 — Robot + Screen Integration
+## PHASE 5 — End-to-End Conversation Runtime
+
+Phase 5 is gated and ordered as follows:
+
+### Gate 5A — GPT-5.6 Sol A→Z Senior System Audit
+
+- Review the complete Phase 1–4 system before any real provider or voice run.
+- Treat the audit as a blocking pre-voice gate.
+- Make no production-code repairs during the audit pass.
+
+### Gate 5B — Targeted Audit Remediation
+
+- Resolve all P0/P1 audit findings in a separate remediation pass, if any.
+- Phase 5 real conversation may not start while any P0/P1 remains unresolved.
+
+### Gate 5C — Real Provider + Real Voice Integration
+
+Prove the complete controlled conversation path:
+
+```text
+Mic → STT → Brain/RAG → LLM → TTS → Speaker
+```
+
+This roadmap change is a process decision. It does not claim that the live
+voice path, provider behavior, conversational quality, or production hardware
+has passed validation.
+
+## PHASE 6 — Robot + Screen Integration
 
 Deliver:
 
@@ -3502,7 +3530,10 @@ Exit criteria:
 - AI cannot send raw motor commands.
 - screen can show event entities.
 
-## PHASE 6 — Event Hardening + Final Voice Acceptance
+Robot, Screen, and ROS work must not begin until the Phase 5 conversation
+runtime has been proven.
+
+## PHASE 7 — Event Hardening + Final Voice Acceptance
 
 Deliver:
 
@@ -3885,7 +3916,7 @@ The architecture is considered sufficiently stable to start implementation.
 - dynamic event packages.
 - semantic robot tools.
 - simple modular monolith.
-- six implementation phases.
+- seven implementation phases, with voice-runtime proof before robot/screen integration.
 
 ### Must be determined empirically
 
@@ -4198,4 +4229,21 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.13**
+## v1.14 - 2026-09-02
+
+- Reordered the roadmap so Phase 5 proves the end-to-end conversation runtime
+  before Robot, Screen, or ROS integration.
+- Added Gate 5A as the blocking GPT-5.6 Sol A→Z senior system audit, Gate 5B as
+  a separate targeted remediation pass when required, and Gate 5C as the real
+  provider plus real voice integration gate.
+- Moved Robot + Screen Integration to Phase 6.
+- Moved Event Hardening + Final Voice Acceptance to Phase 7, preserving final
+  Raspberry Pi 5, Anker S330, noisy-event, and acoustic validation debt.
+- Prohibited Phase 5 real conversation execution while any P0/P1 audit finding
+  remains unresolved.
+- Recorded this as a process and roadmap change only; no live voice, provider,
+  Robot, Screen, ROS, or production-readiness claim is made.
+
+---
+
+**End of Master Plan v1.14**
