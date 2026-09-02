@@ -3,13 +3,13 @@
 **Phase:** 2 — Realtime Conversation Core
 **Branch:** `phase/2-realtime-conversation-core`
 **Status:** `IN_PROGRESS`
-**Last completed task:** Task 7 — Implement async laptop PCM input pump
-**Next task:** Task 8 — Implement Pipecat Silero + Smart Turn runtime
+**Last completed task:** Task 8 — Implement Pipecat Silero + Smart Turn runtime
+**Next task:** Task 9 — Add Egyptian scenarios and text echo/state demo
 **Development platform:** Windows laptop
 **Primary language:** Egyptian Arabic (`ar-EG`)
 **Pipecat:** 1.8.1 import/model initialization PASS
-**Silero VAD:** Not validated yet
-**Smart Turn:** Not validated yet
+**Silero VAD:** Runtime initialization PASS; live validation pending
+**Smart Turn:** v3 runtime initialization PASS; live validation pending
 **Live turn detection:** Not started
 **Barge-in:** Not started
 **Pi/S330:** Deferred deployment validation
