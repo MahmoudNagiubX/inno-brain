@@ -29,7 +29,13 @@ def serialize_f32(vector: Sequence[float], *, dimension: int = 384) -> bytes:
 
 
 class VectorStore:
-    def __init__(self, conn: sqlite3.Connection, *, dimension: int = 384) -> None:
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        dimension: int = 384,
+        create_if_missing: bool = True,
+    ) -> None:
         if dimension < 1:
             raise ValueError("dimension must be positive")
         self.conn = conn
@@ -38,7 +44,18 @@ class VectorStore:
         version = conn.execute("SELECT vec_version()").fetchone()[0]
         if version not in {"0.1.9", "v0.1.9"}:
             raise RuntimeError(f"sqlite-vec 0.1.9 is required, found {version}")
-        self._create_table()
+        if create_if_missing:
+            self._create_table()
+        elif not self._table_exists():
+            raise RuntimeError("existing vec_chunks table is required")
+
+    def _table_exists(self) -> bool:
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vec_chunks'"
+            ).fetchone()
+            is not None
+        )
 
     def _create_table(self) -> None:
         self.conn.execute(

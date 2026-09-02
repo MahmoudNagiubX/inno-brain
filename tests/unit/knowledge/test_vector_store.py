@@ -24,3 +24,10 @@ def test_vector_store_rebuilds_derived_index_and_searches_nearest() -> None:
     assert [hit.rowid for hit in hits] == [1, 2]
     assert hits[0].distance == pytest.approx(0.0)
     assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == 2
+
+
+def test_open_existing_vector_store_rejects_missing_table() -> None:
+    conn = sqlite3.connect(":memory:")
+
+    with pytest.raises(RuntimeError, match="vec_chunks"):
+        VectorStore(conn, create_if_missing=False)

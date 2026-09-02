@@ -2,12 +2,19 @@ import sqlite3
 from pathlib import Path
 
 
-def connect_event_db(path: Path | str) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(path))
+def connect_event_db(path: Path | str, *, readonly: bool = False) -> sqlite3.Connection:
+    if readonly:
+        if str(path) == ":memory:":
+            raise ValueError("read-only event databases must be file-backed")
+        database_uri = Path(path).resolve().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(database_uri, uri=True)
+    else:
+        conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA busy_timeout = 5000")
+    if not readonly:
+        conn.execute("PRAGMA journal_mode = WAL")
     return conn
 
 
