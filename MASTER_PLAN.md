@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
-> **Version:** 1.6
+> **Version:** 1.7
 > **Date:** 2026-09-01  
-> **Status:** Phase 1 complete on Windows laptop; architecture baseline locked; provider/model winners remain benchmark-driven
+> **Status:** Phase 1 complete on Windows laptop; Phase 2 authorized but not started; architecture baseline locked; provider/model winners remain benchmark-driven
 > **Current development platform:** Windows laptop (primary development and testing environment)  
 > **Current development audio:** Laptop microphone + laptop speakers/headphones  
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM  
@@ -1754,8 +1754,6 @@ The project should remain six major phases.
 
 ## PHASE 1 — Foundation + Hardware Validation
 
-The v1.6 Phase 1 execution result is defined by the laptop-focused contract in section 32.1. Raspberry Pi 5 and Anker PowerConf S330 validation remain deferred deployment prerequisites and are not Phase 1 blockers.
-
 Deliver:
 
 - clean repository.
@@ -1777,25 +1775,7 @@ Exit criteria:
 
 # 32.1 Phase 1 Execution Contract — Foundation + Laptop Audio Validation
 
-**Execution status at v1.5 creation:** `AUTHORIZED_NOT_STARTED`
-
-**Phase 1 completion status at v1.6:** `PHASE_1_COMPLETE`
-
-### Phase 1 measured Windows laptop results
-
-- OS: Microsoft Windows 11 Home Single Language, version 10.0.26200, build 26200.
-- Python: 3.14.6 in the project virtual environment.
-- Branch: `phase/1-foundation-laptop-audio`.
-- OS default input: index 1, `Microphone Array (Realtek(R) Au`.
-- OS default output: index 3, `Speakers (Realtek(R) Audio)`.
-- Development audio path: 16 kHz, mono PCM16 WAV recording and laptop playback.
-- Final Egyptian sample: 10 seconds, 0% clipping; user listening gate PASS.
-- User feedback: speech was clear and intelligible enough for development; background noise was acceptable; playback worked normally; recording level was slightly low but not a blocker.
-- Automated verification: 9 tests passed; Ruff passed; configuration loaded as `ar-EG laptop`.
-- Repeated short record/playback smoke: PASS with two 4-second samples.
-- No Windows device index is hard-coded in production configuration; input/output remain `null` defaults.
-- No provider API was called and no model weights were downloaded.
-- Raspberry Pi 5 and Anker PowerConf S330: NOT TESTED in Phase 1; deployment validation deferred.
+**Execution status:** `PHASE_1_COMPLETE`
 
 Phase 1 is deliberately focused on creating a complete software foundation and validating audio I/O on the current development laptop.
 
@@ -1908,8 +1888,6 @@ The lack of Raspberry Pi access is NOT a Phase 1 blocker.
 
 Only `PHASE_1_COMPLETE` authorizes Phase 2.
 
-**Current authorization:** Phase 2 is authorized after the completed laptop manual gate; Phase 2 implementation was not started in this branch.
-
 ## Phase 1 completion action
 
 On successful completion, the coding agent must:
@@ -1923,24 +1901,282 @@ On successful completion, the coding agent must:
 - stop without starting Phase 2.
 
 
-## PHASE 2 — Realtime Conversation Core
+
+## Phase 1 measured result snapshot
+
+Phase 1 was completed on the Windows laptop and pushed to:
+
+```text
+branch: phase/1-foundation-laptop-audio
+branch HEAD: 03b46778133ccb5cd8308d8cff739448470c2f1d
+implementation finalization commit: aeba88fb956fd017f1c2b57d9c35e49af98919d3
+```
+
+Measured/verified development facts:
+
+- OS: Microsoft Windows 11 Home Single Language, version 10.0.26200, build 26200.
+- Python: 3.14.6.
+- Config: `ar-EG laptop`.
+- Input: OS default index 1 — `Microphone Array (Realtek(R) Au`.
+- Output: OS default index 3 — `Speakers (Realtek(R) Audio)`.
+- Development audio format: 16 kHz, mono.
+- Recording: PASS.
+- Playback: PASS.
+- Repeated I/O smoke: PASS.
+- Automated tests: `9 passed`.
+- Ruff: PASS.
+- Manual Egyptian listening gate: PASS.
+- Listening note: Egyptian speech was clear and intelligible enough for development; background noise was acceptable; the slightly low level was not a Phase 1 blocker.
+- Raspberry Pi 5 validation: DEFERRED.
+- Anker PowerConf S330 validation: DEFERRED.
+- No STT/TTS/LLM API was called in Phase 1.
+- No Phase 2 implementation was started in the Phase 1 branch.
+
+Phase 1 report:
+
+`docs/phase1/PHASE1_REPORT.md`
+
+
+# 32.2 Phase 2 Execution Contract — Realtime Conversation Core
+
+**Execution status at v1.7 creation:** `AUTHORIZED_NOT_STARTED`
+
+Phase 2 builds the realtime interaction layer on the current Windows laptop.
+
+It does NOT add speech recognition, an LLM, TTS, RAG, memory, event knowledge, robot navigation, or production hardware validation.
+
+## Phase 2 implementation decisions
+
+- Development remains Windows-laptop-first.
+- Branch: `phase/2-realtime-conversation-core`.
+- The Phase 2 branch MUST be created from the completed Phase 1 branch, not from stale `main`, because Phase 1 has not been merged.
+- Expected Phase 1 source HEAD at planning time: `03b46778133ccb5cd8308d8cff739448470c2f1d`.
+- Python remains `>=3.11,<3.15`; current development Python is 3.14.6.
+- Pin the stable Pipecat release to `pipecat-ai==1.8.1`.
+- Do not use the Pipecat `local`/PyAudio transport in Phase 2.
+- Continue using the existing `sounddevice` laptop backend from Phase 1.
+- `sounddevice` microphone PCM is converted to Pipecat `InputAudioRawFrame` objects and queued into a Pipecat `PipelineWorker`.
+- Runtime VAD uses `pipecat.audio.vad.silero.SileroVADAnalyzer`.
+- Runtime semantic turn ending uses `pipecat.audio.turn.smart_turn.local_smart_turn_v3.LocalSmartTurnAnalyzerV3`.
+- Runtime uses the models bundled with the pinned Pipecat package; do not download separate Silero or Smart Turn weights.
+- Use `VADProcessor` before `UserTurnProcessor`.
+- User turn start is VAD-driven with `VADUserTurnStartStrategy`.
+- User turn stop is Smart-Turn-driven with `TurnAnalyzerUserTurnStopStrategy`.
+- Because Phase 2 intentionally has no STT, configure the stop strategy with `wait_for_transcript=False`.
+- Pipecat 1.8.1 default VAD values are the initial baseline: confidence `0.7`, start `0.2 s`, stop `0.2 s`, min volume `0.6`.
+- VAD thresholds are configuration-driven. Do not silently tune them without a measured failure.
+- The InnoBrain conversation state machine owns the product state: `IDLE`, `LISTENING`, `THINKING`, `SPEAKING`, `INTERRUPTED`.
+- A small generated non-speech tone is the Phase 2 placeholder for assistant playback. It is NOT TTS.
+- The placeholder tone is used to test cancellation and barge-in without letting laptop-speaker speech echo masquerade as user speech.
+- Full spoken-output echo/AEC validation remains deferred to later speech/production-hardware testing.
+- User speech while state is `THINKING` or `SPEAKING` must cancel active response/playback work.
+- Never allow two assistant playback sessions at the same time.
+- Phase 2 may provide a text echo/state-machine demo, but it is not an LLM and must not be presented as conversational intelligence.
+- Raspberry Pi/S330 absence is not a Phase 2 blocker.
+
+## Phase 2 realtime data path
+
+```text
+Laptop Microphone
+      │
+      ▼
+sounddevice RawInputStream
+16 kHz / mono / PCM16 / 20 ms blocks
+      │
+      ▼
+async bounded audio queue
+      │
+      ▼
+Pipecat PipelineWorker.queue_frames(...)
+      │
+      ▼
+InputAudioRawFrame
+      │
+      ▼
+VADProcessor
+  SileroVADAnalyzer
+      │
+      ▼
+VAD start/stop frames
+      │
+      ▼
+UserTurnProcessor
+  start: VADUserTurnStartStrategy
+  stop: TurnAnalyzerUserTurnStopStrategy(
+          LocalSmartTurnAnalyzerV3,
+          wait_for_transcript=False
+        )
+      │
+      ├──────── on_user_turn_started ───────► InterruptionController
+      │                                         │
+      │                                         └── cancel mock playback/work
+      │
+      └──────── on_user_turn_stopped ───────► semantic turn complete
+                                                │
+                                                ▼
+                                        Conversation State Machine
+```
+
+## Phase 2 software outputs
+
+```text
+pyproject.toml                         # add pinned Pipecat + pytest-asyncio
+config/runtime.yaml                    # realtime/VAD/Smart Turn settings
+src/innobrain/audio/stream.py          # async sounddevice PCM source
+src/innobrain/voice/state.py           # strict state machine
+src/innobrain/voice/playback.py        # single-session interruptible tone playback
+src/innobrain/voice/interruption.py     # cancellation controller + latency result
+src/innobrain/voice/turn_events.py      # typed turn-event records
+src/innobrain/voice/pipecat_runtime.py  # VAD + Smart Turn Pipecat runtime
+src/innobrain/voice/text_echo.py        # non-AI state-machine echo harness
+scripts/phase2/dependency_smoke.py
+scripts/phase2/offline_vad_probe.py
+scripts/phase2/turn_detection_demo.py
+scripts/phase2/barge_in_demo.py
+scripts/phase2/text_echo_demo.py
+evals/conversation/phase2_egyptian_turns.yaml
+docs/phase2/PHASE2_STATE.md
+docs/phase2/PHASE2_REPORT.md
+tests/unit/voice/...
+tests/unit/audio/...
+tests/integration/voice/...
+```
+
+## Phase 2 automated exit checks
+
+- Existing Phase 1 tests still pass.
+- New Phase 2 tests pass.
+- Ruff passes.
+- Pipecat installed version is exactly `1.8.1`.
+- `SileroVADAnalyzer` instantiates successfully.
+- `LocalSmartTurnAnalyzerV3` instantiates successfully.
+- State-machine invalid transitions are rejected.
+- Playback controller never overlaps two playback sessions.
+- Interruption controller cancels `THINKING`/`SPEAKING` work and returns to `LISTENING`.
+- Laptop audio input pump produces 16 kHz mono PCM frames without blocking the sounddevice callback.
+- Pipecat pipeline can start, accept synthetic PCM frames, and shut down cleanly.
+- No STT/LLM/TTS/RAG provider is imported or called.
+
+## Phase 2 interactive Egyptian checks
+
+### Silence gate
+
+Run the realtime turn detector for 10 seconds without intentionally speaking.
+
+Expected:
+
+- zero user-turn-start events caused by ordinary room background.
+
+### Normal Egyptian turn
+
+Say:
+
+`ممكن تقولي البرنامج بتاع النهارده؟`
+
+Expected:
+
+- one user-turn-start.
+- one semantic user-turn-stop after the utterance finishes.
+
+### Hesitation/continuation test
+
+Say naturally:
+
+`بص أنا عايز أعرف...`
+
+Pause approximately 0.8–1.2 seconds, then continue:
+
+`الـsession اللي بعد الضهر فين؟`
+
+Run three trials.
+
+Target:
+
+- at least two of three trials preserve the same user turn through the thinking pause.
+- no response placeholder should begin during a preserved incomplete pause.
+- final semantic stop should occur after the continuation.
+
+If this target fails repeatedly, do not pretend Smart Turn is validated for the current Egyptian use case. Record the evidence and stop for a turn-detection decision.
+
+### Barge-in test
+
+Use a generated tone as placeholder assistant audio.
+
+While the tone is active, say:
+
+`معلش وقف`
+
+Expected:
+
+- user-turn-start is detected.
+- active tone is cancelled.
+- state transitions `SPEAKING → INTERRUPTED → LISTENING`.
+- there is no second overlapping tone.
+- log `event_to_playback_stop_ms`.
+
+Phase 2 engineering target:
+
+`user-turn-start event → playback stop <= 100 ms`
+
+This is an internal software cancellation metric only.
+
+It does NOT claim the full acoustic `speech onset → robot silence` production barge-in target, because laptop speaker echo/AEC and production S330 hardware are not validated here.
+
+## Phase 2 manual gate
+
+The user confirms:
+
+1. normal Egyptian speech creates sensible start/stop events;
+2. ordinary silence/background does not constantly false-trigger;
+3. the hesitation test is acceptable in at least two of three trials;
+4. speaking during the placeholder tone stops it quickly;
+5. the runtime returns to listening and can accept another turn afterward.
+
+## Phase 2 allowed final states
+
+Exactly one:
+
+- `PHASE_2_COMPLETE`
+- `PHASE_2_WAITING_FOR_INTERACTION_CONFIRMATION`
+- `PHASE_2_BLOCKED`
+
+## Phase 2 completion action
+
+After the user passes the manual gate:
+
+- write actual measurements/results to `docs/phase2/PHASE2_REPORT.md`;
+- update this Master Plan with actual Phase 2 results;
+- bump Master Plan patch version from `1.7` to `1.8`;
+- update README status;
+- run the complete test suite and Ruff fresh;
+- commit and push `phase/2-realtime-conversation-core`;
+- do not merge automatically;
+- stop before Phase 3.
+
+## PHASE 2 — Realtime Conversation Core summary
 
 Deliver:
 
-- Pipecat.
+- pinned Pipecat runtime.
 - Silero VAD.
-- Smart Turn.
+- Smart Turn v3.
 - state machine.
-- streaming audio.
+- streaming laptop PCM into Pipecat.
 - interruption/cancellation.
-- basic text echo test.
+- single-session placeholder playback.
+- basic text echo/state demo.
+- Egyptian turn/pause/barge-in evaluation harness.
 
 Exit criteria:
 
-- user can speak.
-- pauses do not trigger obvious premature answers.
-- user can interrupt audio playback.
-- no overlapping TTS streams.
+- user speech start is detected.
+- semantic user-turn stop is detected.
+- Egyptian hesitation test is acceptable.
+- user can interrupt active placeholder playback.
+- no overlapping playback sessions.
+- runtime shuts down cleanly.
+- no Phase 3 provider/brain/RAG work has started.
+
 
 ## PHASE 3 — Speech + Brain + RAG
 
@@ -2463,14 +2699,33 @@ Pepper realtime AI:
 
 # 43. Change Log
 
+## v1.7 — 2026-09-02
+
+- Authorized Phase 2 — Realtime Conversation Core.
+- Locked Phase 2 branch to `phase/2-realtime-conversation-core`, based on the completed Phase 1 branch rather than stale `main`.
+- Pinned Pipecat runtime to stable release `1.8.1`.
+- Chose the existing `sounddevice` backend for laptop PCM capture instead of Pipecat's PyAudio local transport.
+- Locked the Phase 2 Pipecat chain to `VADProcessor(Silero)` followed by `UserTurnProcessor(VAD start + Smart Turn stop)`.
+- Explicitly set Smart Turn stop strategy `wait_for_transcript=False` because STT is deferred to Phase 3.
+- Chose Pipecat-bundled Silero and Smart Turn model assets; no separate model download in Phase 2.
+- Added strict `IDLE/LISTENING/THINKING/SPEAKING/INTERRUPTED` product state machine.
+- Added a generated non-speech tone as the Phase 2 assistant-playback placeholder for safe barge-in testing.
+- Defined Phase 2 Egyptian silence, normal-turn, hesitation and barge-in manual gates.
+- Clarified that Phase 2 cancellation latency is measured from detected user-turn-start event, not acoustic speech onset.
+- Kept Raspberry Pi/S330 and full spoken-output AEC validation deferred.
+
 ## v1.6 — 2026-09-02
 
-- Completed the laptop-focused Phase 1 execution on `phase/1-foundation-laptop-audio`.
-- Recorded the Windows 11 laptop/default microphone and output results in the Phase 1 report.
-- Confirmed the 16 kHz mono PCM16 development audio path through recording, analysis and playback.
-- Recorded the user manual listening gate as PASS; the slightly low recording level is a non-blocking development note.
-- Deferred Raspberry Pi 5 and Anker PowerConf S330 deployment validation; neither blocked Phase 1.
-- Authorized Phase 2 by completing Phase 1, while leaving all Phase 2 implementation unstarted.
+- Recorded Phase 1 as `PHASE_1_COMPLETE`.
+- Recorded Windows 11 + Python 3.14.6 as the validated development environment.
+- Recorded config validation `ar-EG laptop`.
+- Recorded laptop Realtek microphone/output device observations.
+- Recorded 16 kHz mono recording/playback/repeated-I/O PASS.
+- Recorded `9 passed` and Ruff PASS.
+- Recorded the user Egyptian listening gate as PASS, with acceptable background noise and slightly low but usable recording level.
+- Kept Raspberry Pi 5 and Anker S330 production validation deferred.
+- Authorized Phase 2 without starting it.
+- Recorded Phase 1 branch HEAD `03b46778133ccb5cd8308d8cff739448470c2f1d`.
 
 ## v1.5 — 2026-09-02
 
