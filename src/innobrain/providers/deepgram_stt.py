@@ -8,6 +8,7 @@ from deepgram.core.events import EventType
 
 from .contracts import STTProvider, TranscriptEvent
 from .errors import MissingProviderCredential, ProviderTimeout
+from .transcript_buffer import TurnTranscriptBuffer
 
 EVENT_GLOSSARY = (
     "InnoBrain",
@@ -25,16 +26,25 @@ def _field(value: object, name: str, default: object = None) -> object:
     return getattr(value, name, default)
 
 
-def _transcript(message: object) -> tuple[str, bool]:
+def _transcript(message: object) -> tuple[str, bool, bool, int | None]:
     message_type = _field(message, "type", "")
     if message_type not in ("", "Results"):
-        return "", False
+        return "", False, False, None
     channel = _field(message, "channel")
     alternatives = _field(channel, "alternatives", [])
     if not alternatives:
-        return "", False
-    transcript = _field(alternatives[0], "transcript", "")
-    return str(transcript or ""), bool(_field(message, "is_final", False))
+        text = ""
+    else:
+        text = str(_field(alternatives[0], "transcript", "") or "")
+    turn_id = _field(message, "turn_id")
+    if not isinstance(turn_id, int):
+        turn_id = None
+    return (
+        text,
+        bool(_field(message, "is_final", False)),
+        bool(_field(message, "speech_final", False)),
+        turn_id,
+    )
 
 
 class DeepgramSTTProvider(STTProvider):
@@ -70,59 +80,86 @@ class DeepgramSTTProvider(STTProvider):
         self.connection: object | None = None
         self._context_manager: object | None = None
         self._listener_task: asyncio.Task[object] | None = None
-        self._partial: TranscriptEvent | None = None
-        self._final_queue: asyncio.Queue[TranscriptEvent] = asyncio.Queue()
+        self._buffer: TurnTranscriptBuffer | None = None
+        self._active_turn_id: int | None = None
+
+    @property
+    def active_turn_id(self) -> int | None:
+        return self._active_turn_id
 
     async def start(self) -> None:
+        self._buffer = TurnTranscriptBuffer(asyncio.get_running_loop())
         if self.connection is None:
-            if self.connection_factory is not None:
-                try:
-                    connection = self.connection_factory(**self.options)
-                except TypeError:
-                    connection = self.connection_factory(self.options)
-            else:
+            def create_connection() -> object:
+                if self.connection_factory is not None:
+                    try:
+                        return self.connection_factory(**self.options)
+                    except TypeError:
+                        return self.connection_factory(self.options)
                 if self.client is None:
                     self.client = DeepgramClient(api_key=self._api_key)
-                connection = self.client.listen.v1.connect(**self.options)
+                return self.client.listen.v1.connect(**self.options)
+
+            connection = await asyncio.to_thread(create_connection)
             if inspect.isawaitable(connection):
                 connection = await connection
             self._context_manager = connection if hasattr(connection, "__enter__") else None
             if self._context_manager is not None:
-                connection = self._context_manager.__enter__()
+                connection = await asyncio.to_thread(self._context_manager.__enter__)
             self.connection = connection
         self._register(EventType.MESSAGE, self._on_message)
         start_listening = getattr(self.connection, "start_listening", None)
         if start_listening is not None:
             self._listener_task = asyncio.create_task(asyncio.to_thread(start_listening))
 
+    async def begin_turn(self, turn_id: int) -> None:
+        if self._buffer is None or self.connection is None:
+            raise RuntimeError("Deepgram provider has not started")
+        self._active_turn_id = turn_id
+        self._buffer.begin_turn(turn_id)
+
     async def stream_audio(self, pcm: bytes) -> None:
         if self.connection is None:
             raise RuntimeError("Deepgram provider has not started")
-        result = self.connection.send_media(pcm)
+        result = await asyncio.to_thread(self.connection.send_media, pcm)
         if inspect.isawaitable(result):
             await result
 
     async def partial_text(self) -> TranscriptEvent | None:
-        return self._partial
+        if self._buffer is None or self._active_turn_id is None:
+            return None
+        await asyncio.sleep(0)
+        return self._buffer.partial_text(self._active_turn_id)
 
-    async def final_text(self) -> TranscriptEvent:
-        if self.connection is None:
+    async def final_text(self, turn_id: int | None = None) -> TranscriptEvent:
+        selected_turn_id = self._active_turn_id if turn_id is None else turn_id
+        if self.connection is None or self._buffer is None or selected_turn_id is None:
             raise RuntimeError("Deepgram provider has not started")
         finalize = getattr(self.connection, "send_finalize", None)
         if finalize is not None:
-            result = finalize()
+            result = await asyncio.to_thread(finalize)
             if inspect.isawaitable(result):
                 await result
         try:
-            return await asyncio.wait_for(self._final_queue.get(), self.final_timeout_seconds)
-        except TimeoutError as exc:
+            return await self._buffer.finalize(
+                selected_turn_id,
+                timeout_seconds=self.final_timeout_seconds,
+            )
+        except ProviderTimeout as exc:
             raise ProviderTimeout("Deepgram did not return a final transcript") from exc
+        finally:
+            self._buffer.close_turn(selected_turn_id)
+            if self._active_turn_id == selected_turn_id:
+                self._active_turn_id = None
 
     async def stop(self) -> None:
+        if self._buffer is not None and self._active_turn_id is not None:
+            self._buffer.close_turn(self._active_turn_id)
+        self._active_turn_id = None
         if self.connection is not None:
             close_stream = getattr(self.connection, "send_close_stream", None)
             if close_stream is not None:
-                result = close_stream()
+                result = await asyncio.to_thread(close_stream)
                 if inspect.isawaitable(result):
                     await result
         if self._listener_task is not None:
@@ -131,7 +168,7 @@ class DeepgramSTTProvider(STTProvider):
             except (TimeoutError, asyncio.CancelledError):
                 self._listener_task.cancel()
         if self._context_manager is not None:
-            self._context_manager.__exit__(None, None, None)
+            await asyncio.to_thread(self._context_manager.__exit__, None, None, None)
         self.connection = None
         self._context_manager = None
         self._listener_task = None
@@ -145,12 +182,15 @@ class DeepgramSTTProvider(STTProvider):
             self.connection.on(event.value, callback)
 
     def _on_message(self, message: object) -> None:
-        text, is_final = _transcript(message)
-        if not text:
+        text, is_final, is_terminal, message_turn_id = _transcript(message)
+        turn_id = message_turn_id or self._active_turn_id
+        if turn_id is None or self._buffer is None:
             return
-        if is_final:
-            self._final_queue.put_nowait(
-                TranscriptEvent(text=text, is_final=True, language="ar-EG")
+        if text:
+            self._buffer.push_from_callback(
+                turn_id=turn_id,
+                text=text,
+                is_final=is_final,
             )
-        else:
-            self._partial = TranscriptEvent(text=text, is_final=False, language="ar-EG")
+        if is_terminal:
+            self._buffer.complete_from_callback(turn_id=turn_id)
