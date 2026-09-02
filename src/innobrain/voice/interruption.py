@@ -1,11 +1,15 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from time import perf_counter
+from typing import Protocol
 
-from .playback import PlaybackController
 from .state import ConversationState, ConversationStateMachine
 
 ThinkingCancellationCallback = Callable[[], Awaitable[None]]
+
+
+class CancelablePlayback(Protocol):
+    async def cancel(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,12 +23,13 @@ class InterruptionController:
     def __init__(
         self,
         machine: ConversationStateMachine,
-        playback: PlaybackController,
+        playback: CancelablePlayback,
         thinking_cancel_callback: ThinkingCancellationCallback | None = None,
+        response_cancel_callback: ThinkingCancellationCallback | None = None,
     ) -> None:
         self._machine = machine
         self._playback = playback
-        self._thinking_cancel_callback = thinking_cancel_callback
+        self._response_cancel_callback = response_cancel_callback or thinking_cancel_callback
 
     async def handle_user_turn_started(self) -> InterruptionResult:
         prior_state = self._machine.state
@@ -32,6 +37,8 @@ class InterruptionController:
 
         if prior_state is ConversationState.SPEAKING:
             self._machine.transition(ConversationState.INTERRUPTED, "user_barge_in")
+            if self._response_cancel_callback is not None:
+                await self._response_cancel_callback()
             await self._playback.cancel()
             elapsed_ms = (perf_counter() - started_at) * 1000.0
             self._machine.transition(
@@ -42,8 +49,8 @@ class InterruptionController:
 
         if prior_state is ConversationState.THINKING:
             self._machine.transition(ConversationState.INTERRUPTED, "user_barge_in")
-            if self._thinking_cancel_callback is not None:
-                await self._thinking_cancel_callback()
+            if self._response_cancel_callback is not None:
+                await self._response_cancel_callback()
             self._machine.transition(
                 ConversationState.LISTENING,
                 "interruption_handled",
