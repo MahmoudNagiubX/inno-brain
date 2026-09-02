@@ -1,11 +1,13 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
-> **Version:** 1.2  
+> **Version:** 1.5  
 > **Date:** 2026-09-01  
 > **Status:** Architecture baseline locked; provider/model winners remain benchmark-driven  
-> **Primary hardware:** Raspberry Pi 5 — 8 GB RAM  
-> **Audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308  
+> **Current development platform:** Windows laptop (primary development and testing environment)  
+> **Current development audio:** Laptop microphone + laptop speakers/headphones  
+> **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM  
+> **Target production audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308  
 > **Language target:** Egyptian Arabic FIRST. English is secondary. Arabic/English code-switching is supported only where it improves Egyptian usability.  
 > **Product target:** A low-latency, interruptible, context-aware Egyptian-Arabic event robot that feels conversational rather than like a voice FAQ kiosk.
 
@@ -199,9 +201,48 @@ Heavy ingestion, document parsing, mass embedding generation, large reranking an
 
 ---
 
+
+# 4.1 Development vs Deployment Mode
+
+The project is currently developed and tested on the developer's Windows laptop.
+
+Current development reality:
+
+- The Raspberry Pi is not currently available to the primary developer.
+- The Anker PowerConf S330 is not currently used by the primary developer.
+- Day-to-day development, automated tests and interactive audio tests run on the laptop.
+- The laptop's built-in/default microphone is the current development microphone.
+- The laptop's normal output device is the current development speaker/output.
+- Raspberry Pi deployment and production-hardware validation may be performed later by another team member.
+
+This changes the validation workflow, but NOT the product architecture.
+
+The codebase must remain hardware-agnostic:
+
+```text
+Core conversation/runtime logic
+        │
+        ▼
+Audio I/O abstraction
+        │
+        ├── Laptop development backend
+        └── Raspberry Pi / S330 deployment backend
+```
+
+Rules:
+
+- Core STT/LLM/TTS/RAG/conversation code must not depend directly on Windows device IDs.
+- Core code must not depend directly on Raspberry Pi ALSA card IDs.
+- Audio device selection must be configuration-driven.
+- Laptop testing is sufficient for current development phases unless a task is specifically marked as deployment validation.
+- Raspberry Pi/S330-specific validation is deferred to the deployment/hardware-validation track.
+- No development phase may be marked blocked merely because the Pi or S330 is unavailable.
+- Production readiness still requires later validation on the real Raspberry Pi 5 + S330 before event deployment.
+
+
 # 5. Audio Hardware — Anker PowerConf S330
 
-## 5.1 Confirmed device
+## 5.1 Target production device
 
 Model:
 
@@ -1673,6 +1714,40 @@ The detailed execution handoff is maintained separately in:
 `CODEX_PRE_PHASE1_BOOTSTRAP.md`
 
 
+
+# 31.7 Bootstrap Execution Status
+
+**Status:** `READY_FOR_PHASE_1`
+
+The pre-Phase-1 bootstrap was executed by Codex and reported complete.
+
+Reported execution details:
+
+- Workspace: `C:\Users\mahmo\Desktop\InnoBrainWorkspace`
+- Production repository: `C:\Users\mahmo\Desktop\InnoBrainWorkspace\inno-brain`
+- GitHub repository: `https://github.com/MahmoudNagiubX/inno-brain`
+- GitHub visibility: Private
+- Donor repositories cloned: `13/13`
+- Donor inspection report: `docs/research/DONOR_INSPECTION.md`
+- Bootstrap report: `docs/bootstrap/BOOTSTRAP_REPORT.md`
+- Verification reported by Codex:
+  - clean Git state.
+  - exact document hashes checked.
+  - no secrets detected.
+  - no production imports from donor repositories.
+  - no Phase 1 implementation started.
+
+License note reported during bootstrap:
+
+- `sqlite-vec` had no root license file in the inspected checkout.
+- model, dataset, vendored-code and sample-media licensing concerns are documented separately in the donor inspection materials.
+- Any donor marked for license review must not be copied into production code until the relevant license is explicitly confirmed.
+
+**Evidence note:** The status above is recorded from the Codex execution report supplied by the user. It has not been independently re-run or re-verified inside this chat environment.
+
+**Next authorized milestone:** Phase 1 — Foundation + Hardware Validation.
+
+
 # 32. Six Implementation Phases
 
 The project should remain six major phases.
@@ -1696,6 +1771,135 @@ Exit criteria:
 - Pi captures and plays audio reliably.
 - S330 simultaneous record/playback validated.
 - repository structure stable.
+
+
+# 32.1 Phase 1 Execution Contract — Foundation + Laptop Audio Validation
+
+**Execution status at v1.5 creation:** `AUTHORIZED_NOT_STARTED`
+
+Phase 1 is deliberately focused on creating a complete software foundation and validating audio I/O on the current development laptop.
+
+The Raspberry Pi 5 and Anker PowerConf S330 remain the target deployment hardware, but they are NOT required to complete Phase 1.
+
+## Phase 1 locked execution decisions
+
+- Development environment: Windows laptop.
+- Development microphone: laptop/default microphone.
+- Development output: laptop/default speakers or headphones.
+- Work on branch: `phase/1-foundation-laptop-audio`.
+- Do not merge the branch automatically.
+- Production Python compatibility range: `>=3.11,<3.15`.
+- The current Windows development host may use its existing Python 3.14.6.
+- Use a project virtual environment; never install project packages globally.
+- Phase 1 production dependencies stay small and explicit.
+- Phase 1 may add a lightweight cross-platform audio library for laptop device enumeration/capture/playback testing.
+- Do **not** install Pipecat, Silero VAD, Smart Turn, STT/TTS/LLM provider SDKs, model runtimes, sqlite-vec or model weights in Phase 1.
+- Do **not** use API keys or free-tier API quota in Phase 1.
+- Do **not** implement RAG runtime, STT, LLM, TTS or ROS integration yet.
+- Build configuration validation, provider contracts, logging, audio-device abstraction, laptop audio probe/capture/playback test tools, and Egyptian-Arabic audio evaluation fixtures.
+- Laptop audio device selection must be configuration-driven and must not hard-code a Windows device index.
+- Raspberry Pi and S330-specific code must stay behind interfaces/adapters and must not leak into core conversation logic.
+- Raspberry Pi/S330 hardware validation is deferred and must not block development.
+- Donor repositories stay unchanged and outside the production repository.
+- Existing donor inspection reports are the default research reference; do not rescan every donor repo.
+
+## Phase 1 software outputs
+
+The production repository must gain:
+
+```text
+pyproject.toml
+src/innobrain/config/
+src/innobrain/providers/
+src/innobrain/telemetry/
+src/innobrain/audio/
+config/runtime.yaml
+config/providers.yaml
+config/persona.yaml
+evals/audio/phase1_egyptian_phrases.yaml
+evals/audio/README.md
+scripts/phase1/list_audio_devices.py
+scripts/phase1/record_laptop_sample.py
+scripts/phase1/play_laptop_sample.py
+scripts/phase1/analyze_wav.py
+docs/phase1/PHASE1_STATE.md
+docs/phase1/PHASE1_REPORT.md
+tests/unit/...
+```
+
+## Phase 1 laptop audio outputs
+
+Laptop validation must report:
+
+- Windows version.
+- Python version.
+- available capture devices.
+- available playback devices.
+- selected/default input device.
+- selected/default output device.
+- sample rate used.
+- one-channel voice capture works.
+- playback works.
+- repeated short capture/playback works without exceptions.
+- Egyptian-Arabic 0.5–1 m natural speech sample is created using the laptop microphone.
+- manual listening confirms the development audio path is usable.
+
+## Phase 1 manual acoustic gate
+
+The user must confirm:
+
+1. Laptop-mic recording is clear enough for development.
+2. Playback works on the laptop output device.
+3. Egyptian speech is intelligible.
+4. No severe clipping or corrupted audio is present.
+
+This gate validates the development audio path only.
+
+It does NOT certify Raspberry Pi/S330 production acoustics.
+
+## Deferred deployment validation
+
+Before production/event deployment, a separate deployment validation must test:
+
+- Raspberry Pi 5 8 GB.
+- Anker PowerConf S330.
+- USB/ALSA enumeration.
+- S330 hardware DSP behavior.
+- full duplex.
+- echo cancellation.
+- noise handling.
+- distance tests.
+- long-duration soak.
+- power/thermal stability.
+
+That deployment validation may be performed by another team member.
+
+## Phase 1 allowed final states
+
+Exactly one:
+
+- `PHASE_1_COMPLETE`
+- `PHASE_1_WAITING_FOR_AUDIO_CONFIRMATION`
+- `PHASE_1_BLOCKED`
+
+No `WAITING_FOR_PI` state exists for current development.
+
+The lack of Raspberry Pi access is NOT a Phase 1 blocker.
+
+Only `PHASE_1_COMPLETE` authorizes Phase 2.
+
+## Phase 1 completion action
+
+On successful completion, the coding agent must:
+
+- update the Phase 1 status and measured laptop-development facts in `MASTER_PLAN.md`;
+- bump the Master Plan patch version;
+- update `README.md`;
+- write `docs/phase1/PHASE1_REPORT.md`;
+- run fresh full verification;
+- commit and push `phase/1-foundation-laptop-audio`;
+- stop without starting Phase 2.
+
 
 ## PHASE 2 — Realtime Conversation Core
 
@@ -2236,6 +2440,44 @@ Pepper realtime AI:
 ---
 
 # 43. Change Log
+
+## v1.5 — 2026-09-02
+
+- Changed the active development workflow to **Windows laptop first**.
+- Declared the laptop microphone and laptop output device as the current development audio path.
+- Reclassified Raspberry Pi 5 + Anker PowerConf S330 as target deployment hardware, not current Phase 1 requirements.
+- Removed Raspberry Pi/S330 availability as a Phase 1 blocking condition.
+- Deferred Pi/S330 hardware validation to a later deployment-validation track that may be performed by another team member.
+- Locked hardware-agnostic audio interfaces so core conversation logic is portable between laptop development and Pi deployment.
+- Renamed the Phase 1 branch to `phase/1-foundation-laptop-audio`.
+- Replaced Phase 1 hardware validation with laptop audio-device enumeration, capture, playback and Egyptian-Arabic listening validation.
+- Kept production readiness dependent on later real Pi/S330 validation before event deployment.
+
+## v1.4 — 2026-09-02
+
+- Authorized Phase 1 execution with a strict Foundation + Hardware Validation scope.
+- Added Luna/Codex-friendly deterministic execution boundaries.
+- Locked Phase 1 branch name to `phase/1-foundation-hardware`.
+- Set Phase 1 Python compatibility to `>=3.11,<3.15` with isolated virtual environments.
+- Kept Phase 1 dependencies minimal and deferred Pipecat/Silero/Smart Turn/provider SDK/model installation to later phases.
+- Confirmed no API quota or model weights are required in Phase 1.
+- Locked the S330 hardware DSP as the Phase 1 audio baseline; software AEC/NS remains disabled pending measurements.
+- Prohibited Phase 1 changes to global ALSA default configuration such as `.asoundrc`.
+- Defined actual-Pi hardware evidence, S330 full-duplex tests, distance recordings and a five-minute USB/audio soak test.
+- Added a mandatory user acoustic-listening gate before Phase 1 can be marked complete.
+- Defined explicit intermediate states for missing Pi access or pending acoustic confirmation.
+- Required the coding agent to update this Master Plan with measured Phase 1 results before completion.
+
+## v1.3 — 2026-09-02
+
+- Recorded successful Codex pre-Phase-1 bootstrap report.
+- Recorded actual local workspace and production repository paths.
+- Recorded private GitHub repository `MahmoudNagiubX/inno-brain`.
+- Recorded `13/13` donor repositories cloned and inspected.
+- Recorded bootstrap final state as `READY_FOR_PHASE_1`.
+- Added the `sqlite-vec` license-review note reported during donor inspection.
+- Explicitly marked bootstrap verification as Codex-reported rather than independently re-run in this chat.
+- Authorized the next milestone: Phase 1 — Foundation + Hardware Validation.
 
 ## v1.2 — 2026-09-01
 
