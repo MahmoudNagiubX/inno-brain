@@ -1,0 +1,9 @@
+- alias: beta keynote
+  entity_type: session
+  entity_id: beta-keynote
+- alias: laila
+  entity_type: speaker
+  entity_id: beta-laila
+- alias: beta lantern
+  entity_type: booth
+  entity_id: beta-booth

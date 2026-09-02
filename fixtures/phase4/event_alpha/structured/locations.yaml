@@ -1,0 +1,10 @@
+- id: alpha-main-stage
+  name: Alpha Main Stage
+  level: Ground
+  zone: East
+  description: Main presentation stage for Alpha.
+- id: alpha-lab
+  name: Alpha Lab
+  level: Ground
+  zone: West
+  description: Hands-on demonstrations.

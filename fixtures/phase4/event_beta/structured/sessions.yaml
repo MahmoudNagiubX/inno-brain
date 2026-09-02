@@ -1,0 +1,14 @@
+- id: beta-keynote
+  title: Building Trustworthy Data
+  starts_at: 2026-11-05T10:00:00+02:00
+  ends_at: 2026-11-05T11:00:00+02:00
+  location_id: beta-forum
+  speaker_ids: [beta-laila]
+  description: A keynote about practical data trust.
+- id: beta-studio-tour
+  title: Product Studio Walkthrough
+  starts_at: 2026-11-05T11:30:00+02:00
+  ends_at: 2026-11-05T12:30:00+02:00
+  location_id: beta-studio
+  speaker_ids: [beta-youssef]
+  description: A guided studio walkthrough.

@@ -1,0 +1,9 @@
+- alias: alpha opening
+  entity_type: session
+  entity_id: alpha-opening
+- alias: samira
+  entity_type: speaker
+  entity_id: alpha-samira
+- alias: alpha robotics
+  entity_type: booth
+  entity_id: alpha-booth

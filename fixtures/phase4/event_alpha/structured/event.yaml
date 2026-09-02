@@ -1,0 +1,16 @@
+id: event-alpha
+version: 1.0.0
+client_id: client-alpha
+title: Alpha Innovation Forum
+start_date: 2026-10-01
+end_date: 2026-10-03
+venue: Cairo Expo Alpha Hall
+timezone: Africa/Cairo
+default_locale: ar-EG
+documents:
+  - id: alpha-guide
+    path: documents/guide.md
+    title: Alpha visitor guide
+    language: en
+    authority_level: official
+    required: true

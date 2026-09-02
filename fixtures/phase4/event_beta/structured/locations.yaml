@@ -1,0 +1,10 @@
+- id: beta-forum
+  name: Beta Forum
+  level: Ground
+  zone: North
+  description: Beta presentations and talks.
+- id: beta-studio
+  name: Beta Studio
+  level: First
+  zone: South
+  description: Beta product studio.

@@ -1,0 +1,4 @@
+- id: alpha-booth
+  name: Alpha Robotics Booth
+  location_id: alpha-lab
+  description: Demonstrations of event robotics.

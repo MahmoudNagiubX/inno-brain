@@ -1,0 +1,4 @@
+- id: beta-booth
+  name: Beta Lantern Booth
+  location_id: beta-studio
+  description: Interactive Beta technology exhibits.

@@ -1,0 +1,16 @@
+id: event-beta
+version: 1.0.0
+client_id: client-beta
+title: Beta Technology Day
+start_date: 2026-11-05
+end_date: 2026-11-07
+venue: Alexandria Tech Center
+timezone: Africa/Cairo
+default_locale: ar-EG
+documents:
+  - id: beta-guide
+    path: documents/guide.md
+    title: Beta visitor guide
+    language: en
+    authority_level: official
+    required: true
