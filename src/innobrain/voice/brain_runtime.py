@@ -38,6 +38,8 @@ class VoiceBrainRuntime:
         self.memory: SessionMemory = orchestrator.memory
         self.last_result: BrainResult | None = None
         self._response_task: asyncio.Task[BrainResult | None] | None = None
+        self._next_turn_id = 1
+        self._active_turn_id: int | None = None
         self._started = False
         self.interruption = InterruptionController(
             self.machine,
@@ -52,6 +54,10 @@ class VoiceBrainRuntime:
             on_audio_chunk=self._on_audio_chunk,
             on_event=self._on_turn_event,
         )
+
+    @property
+    def active_turn_id(self) -> int | None:
+        return self._active_turn_id
 
     async def start(self) -> None:
         if self._started:
@@ -80,12 +86,31 @@ class VoiceBrainRuntime:
             if inspect.isawaitable(result):
                 await result
 
-    async def handle_user_turn_stopped(self) -> BrainResult | None:
+    async def handle_user_turn_started(self) -> int:
         if self.machine.state is ConversationState.IDLE:
             self.machine.transition(ConversationState.LISTENING, "runtime_started")
+        turn_id = self._next_turn_id
+        self._next_turn_id += 1
+        self._active_turn_id = turn_id
+        try:
+            await self.stt.begin_turn(turn_id)
+        except Exception:
+            self._active_turn_id = None
+            raise
+        return turn_id
+
+    async def handle_user_turn_stopped(self) -> BrainResult | None:
+        turn_id = self._active_turn_id
+        if turn_id is None:
+            return None
+        self._active_turn_id = None
         if self.machine.state is not ConversationState.LISTENING:
             return None
-        transcript = await self.stt.final_text()
+        transcript = await self.stt.final_text(turn_id)
+        if transcript.turn_id is not None and transcript.turn_id != turn_id:
+            return None
+        if not transcript.text.strip():
+            return None
         self.machine.transition(ConversationState.THINKING, "user_turn_stopped")
         self._response_task = asyncio.create_task(self._respond(transcript.text))
         try:
@@ -125,6 +150,9 @@ class VoiceBrainRuntime:
         await self.stt.stream_audio(pcm)
 
     async def _on_turn_event(self, event: TurnEvent) -> None:
+        if event.event_type is TurnEventType.USER_TURN_STARTED:
+            await self.handle_user_turn_started()
+            return
         if event.event_type is TurnEventType.USER_TURN_STOPPED:
             if self._response_task is None or self._response_task.done():
                 self._response_task = asyncio.create_task(self.handle_user_turn_stopped())
