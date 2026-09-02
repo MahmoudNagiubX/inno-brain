@@ -2,11 +2,11 @@
 
 **Phase:** 1 — Foundation + Laptop Audio Validation
 **Branch:** `phase/1-foundation-laptop-audio`
-**Status:** `IN_PROGRESS`
-**Last completed task:** Task 8 — Full automated Windows verification
-**Next task:** Task 9 — Interactive laptop audio test
+**Status:** `PHASE_1_WAITING_FOR_AUDIO_CONFIRMATION`
+**Last completed task:** Task 9 — Interactive laptop audio test
+**Next task:** Task 10 — Manual user listening gate
 **Development audio:** Laptop/default microphone and output
 **Raspberry Pi deployment:** Deferred
 **S330 deployment validation:** Deferred
-**Manual acoustic gate:** Not started
+**Manual acoustic gate:** Pending user confirmation
 **Phase 2 authorized:** No
