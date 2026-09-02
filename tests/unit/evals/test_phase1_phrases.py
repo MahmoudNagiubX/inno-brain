@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-
 PHRASES_PATH = (
     Path(__file__).resolve().parents[3] / "evals" / "audio" / "phase1_egyptian_phrases.yaml"
 )
