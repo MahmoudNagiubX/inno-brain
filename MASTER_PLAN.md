@@ -1,14 +1,14 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
-> **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
-> **Version:** 1.8  
-> **Date:** 2026-09-01  
-> **Status:** Phase 1 complete; Phase 2 implementation in progress; interactive voice validation deferred to final acceptance; architecture baseline locked  
-> **Current development platform:** Windows laptop (primary development and testing environment)  
-> **Current development audio:** Laptop microphone + laptop speakers/headphones  
-> **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM  
-> **Target production audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308  
-> **Language target:** Egyptian Arabic FIRST. English is secondary. Arabic/English code-switching is supported only where it improves Egyptian usability.  
+> **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
+> **Version:** 1.9
+> **Date:** 2026-09-01
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 authorized but not started
+> **Current development platform:** Windows laptop (primary development and testing environment)
+> **Current development audio:** Laptop microphone + laptop speakers/headphones
+> **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
+> **Target production audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308
+> **Language target:** Egyptian Arabic FIRST. English is secondary. Arabic/English code-switching is supported only where it improves Egyptian usability.
 > **Product target:** A low-latency, interruptible, context-aware Egyptian-Arabic event robot that feels conversational rather than like a voice FAQ kiosk.
 
 ---
@@ -2186,6 +2186,28 @@ This state is sufficient for **development progression**, but is NOT equivalent 
 
 Before the full project can be considered release/event ready, the deferred Final Voice Acceptance track must pass.
 
+## Phase 2 continuation wrap-up - 2026-09-02
+
+**Phase 2 state:** `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
+
+The non-interactive Phase 2 implementation is complete on the Windows laptop branch. The existing Task 12 live evidence was preserved, no human-speaking tests were rerun, and VAD/Smart Turn thresholds were unchanged.
+
+Fresh verification results:
+
+- Dependency smoke: PASS (`pipecat-ai==1.8.1`, Silero initialization, Smart Turn v3 initialization).
+- Pytest: `23 passed in 1.71s`.
+- Ruff: PASS.
+- Realtime configuration: `0.7 0.2 0.2 0.6 False`.
+- Phase 3 provider dependency scan: no matches.
+- `git ls-files recordings artifacts`: no output.
+- Synthetic cancellation harness: PASS; generated placeholder playback was cancelled by a programmatic user-turn-start and the state returned to `LISTENING`.
+
+Preserved live evidence remains diagnostic only: 42 events (14 starts, 14 inference triggers, 14 stops), with normal-turn and hesitation acceptance not validated, correction/Test D not run, and live barge-in acceptance deferred. The exact evidence remains in the ignored `artifacts/phase2/turn_events.jsonl` artifact.
+
+Final Voice Acceptance is tracked in `docs/validation/FINAL_VOICE_ACCEPTANCE.md` and remains required before production/event readiness. Raspberry Pi 5, Anker PowerConf S330, AEC, and full end-to-end voice validation remain deferred.
+
+Phase 3 development is authorized, but Phase 3 has not started.
+
 
 ## Phase 2 allowed final states
 
@@ -2786,6 +2808,16 @@ Pepper realtime AI:
 
 # 43. Change Log
 
+## v1.9 — 2026-09-02
+
+- Completed the remaining non-interactive Phase 2 implementation while deferring human-speaking acceptance.
+- Added the placeholder-tone barge-in harness and synthetic cancellation coverage without opening the microphone.
+- Recorded fresh automated verification: `23 passed in 1.71s`, dependency smoke PASS, and Ruff PASS.
+- Set Phase 2 to `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`.
+- Added `docs/validation/FINAL_VOICE_ACCEPTANCE.md` as the permanent deferred acceptance tracker.
+- Preserved the prior 42-event Task 12 evidence as diagnostic/non-acceptance evidence.
+- Authorized Phase 3 development without starting Phase 3.
+
 ## v1.8 — 2026-09-02
 
 - Changed validation scheduling so intermediate live-speaking gates no longer repeatedly stop development.
@@ -2904,4 +2936,4 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.0**
+**End of Master Plan v1.9**
