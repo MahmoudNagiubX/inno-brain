@@ -9,7 +9,14 @@ def _safe_fts_query(query: str) -> str:
         for token in re.findall(r"[^\W_]+", query, flags=re.UNICODE)
         if token.casefold() not in {"and", "or", "not", "near"}
     ]
-    return " AND ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
+    expressions = []
+    for token in tokens:
+        escaped = token.replace(chr(34), chr(34) * 2)
+        variants = [f'"{escaped}"']
+        if not token.startswith("ال"):
+            variants.append(f'"ال{escaped}"')
+        expressions.append(f"({' OR '.join(variants)})")
+    return " AND ".join(expressions)
 
 
 class EventRepository:

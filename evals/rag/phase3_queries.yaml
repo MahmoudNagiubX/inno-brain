@@ -1,0 +1,48 @@
+- id: visit-first
+  query: أول زيارة Main Stage
+  gold_chunk_ids: [1]
+- id: opening-stage
+  query: الـopening في Main Stage
+  gold_chunk_ids: [1]
+- id: expo-area
+  query: منطقة Expo
+  gold_chunk_ids: [1]
+- id: visitor-guide
+  query: لو دي أول زيارة ليك
+  gold_chunk_ids: [1]
+- id: start-at-stage
+  query: ابدأ من Main Stage
+  gold_chunk_ids: [1]
+- id: main-stage-opening
+  query: Main Stage opening
+  gold_chunk_ids: [1]
+- id: robot-demos
+  query: robot demos
+  gold_chunk_ids: [2]
+- id: innovatronics-booth
+  query: Innovatronics Booth
+  gold_chunk_ids: [2]
+- id: expo-a12
+  query: Expo A12
+  gold_chunk_ids: [2]
+- id: live-robot
+  query: robot demos
+  gold_chunk_ids: [2]
+- id: booth-demos
+  query: Innovatronics Booth
+  gold_chunk_ids: [2]
+- id: robots-at-expo
+  query: robot Expo A12
+  gold_chunk_ids: [2]
+- id: practical-workshops
+  query: الورش العملية
+  gold_chunk_ids: [3]
+- id: workshop-hall
+  query: الورش Hall B
+  gold_chunk_ids: [3]
+- id: hall-b
+  query: Hall B
+  gold_chunk_ids: [3]
+- id: workshops-location
+  query: الورش العملية Hall B
+  gold_chunk_ids: [3]
