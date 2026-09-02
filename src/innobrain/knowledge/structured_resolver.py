@@ -1,4 +1,5 @@
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -39,12 +40,22 @@ class StructuredResolver:
         self.repository = repository
         self.event_id = event_id
 
-    def resolve(self, query: str) -> ExactAnswer | None:
+    def resolve(
+        self,
+        query: str,
+        *,
+        active_entities: Sequence[str] = (),
+    ) -> ExactAnswer | None:
         normalized_query = normalize_arabic_retrieval(query)
         if not normalized_query:
             return None
 
         booth = self._unique_entity("booths", "normalized_name", normalized_query)
+        if booth is None and _has_any(
+            normalized_query,
+            ("\u0628\u0648\u062b", "booth"),
+        ):
+            booth = self._one_active_row("booths", active_entities)
         if booth is not None and _has_any(normalized_query, ("بوث", "booth", "فين", "مكان")):
             location = self.repository.get_location(booth["location_id"])
             if location is None:
@@ -58,6 +69,39 @@ class StructuredResolver:
 
         session = self._unique_entity("sessions", "normalized_title", normalized_query)
         speaker = self._unique_entity("speakers", "normalized_name", normalized_query)
+        asks_time = _has_any(
+            normalized_query,
+            (
+                "\u0627\u0644\u0633\u0627\u0639\u0629",
+                "\u0645\u064a\u0639\u0627\u062f",
+                "\u0645\u0639\u0627\u062f",
+                "\u0627\u0645\u062a\u0649",
+                "\u0645\u062a\u0649",
+                "\u0648\u0642\u062a",
+            ),
+        )
+        asks_location = _has_any(
+            normalized_query,
+            (
+                "\u0641\u064a\u0646",
+                "\u0645\u0643\u0627\u0646",
+                "location",
+                "\u0642\u0627\u0639\u0629",
+            ),
+        )
+        if session is None and (asks_time or asks_location):
+            candidates = self._active_rows("sessions", active_entities)
+            if len(candidates) == 1:
+                session = candidates[0]
+        if speaker is None and _has_any(
+            normalized_query,
+            (
+                "\u0628\u064a\u062a\u0643\u0644\u0645",
+                "\u0628\u062a\u062a\u0643\u0644\u0645",
+                "session",
+            ),
+        ):
+            speaker = self._one_active_row("speakers", active_entities)
         if speaker is not None and _has_any(
             normalized_query,
             ("بيتكلم", "بتتكلم", "بيتكل", "جلس", "session", "امتى", "متى", "فين"),
@@ -133,3 +177,17 @@ class StructuredResolver:
             if candidate in normalized_query or meaningful_tokens <= query_tokens:
                 matches.append(row)
         return matches[0] if len(matches) == 1 else None
+
+    def _active_rows(self, table: str, active_entities: Sequence[str]):
+        entity_ids = tuple(dict.fromkeys(str(entity) for entity in active_entities))
+        if not entity_ids:
+            return []
+        placeholders = ",".join("?" for _ in entity_ids)
+        return self.repository.conn.execute(
+            f"SELECT * FROM {table} WHERE event_id = ? AND id IN ({placeholders}) ORDER BY id",
+            (self.event_id, *entity_ids),
+        ).fetchall()
+
+    def _one_active_row(self, table: str, active_entities: Sequence[str]):
+        rows = self._active_rows(table, active_entities)
+        return rows[0] if len(rows) == 1 else None

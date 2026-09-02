@@ -23,6 +23,7 @@ class BrainResult:
     route: AnswerRoute
     evidence_ids: tuple[str, ...]
     provider: str | None
+    entities: tuple[str, ...] = ()
 
 
 class GroundedOrchestrator:
@@ -49,13 +50,17 @@ class GroundedOrchestrator:
         delivery_callback: Callable[[str], Awaitable[bool] | bool] | None = None,
     ) -> BrainResult:
         self.memory.expire_if_idle()
-        exact = self.resolver.resolve(user_text)
+        exact = self.resolver.resolve(
+            user_text,
+            active_entities=self.memory.active_entities(),
+        )
         if exact is not None:
             result = BrainResult(
                 text=exact.text,
                 route=AnswerRoute.EXACT,
                 evidence_ids=exact.evidence_ids,
                 provider=None,
+                entities=exact.entities,
             )
             await self._commit_after_delivery(
                 user_text,
@@ -138,9 +143,13 @@ class GroundedOrchestrator:
         self,
         user_text: str,
         result: BrainResult,
-        entities: Sequence[str] = (),
+        entities: Sequence[str] | None = None,
     ) -> None:
-        self.memory.add_turn(user_text, result.text, entities)
+        self.memory.add_turn(
+            user_text,
+            result.text,
+            result.entities if entities is None else entities,
+        )
 
     async def _commit_after_delivery(
         self,

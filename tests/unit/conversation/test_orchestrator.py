@@ -10,7 +10,8 @@ class FakeResolver:
     def __init__(self, answer=None):
         self.answer_value = answer
 
-    def resolve(self, query):
+    def resolve(self, query, *, active_entities=()):
+        self.active_entities = tuple(active_entities)
         return self.answer_value
 
 
@@ -67,6 +68,7 @@ async def test_exact_and_no_evidence_routes_do_not_call_llm():
         llm_provider=llm,
     )
     assert (await orchestrator.answer("exact")).route is AnswerRoute.EXACT
+    assert (await orchestrator.answer("exact")).entities == ("event",)
     assert llm.calls == 0
 
     orchestrator.resolver = FakeResolver()
