@@ -23,6 +23,7 @@ dependencies = [
     "speechmatics-voice==0.2.8",
     "sqlite-vec==0.1.9",
     "tokenizers>=0.21,<1",
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
