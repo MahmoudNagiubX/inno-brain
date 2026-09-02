@@ -124,7 +124,8 @@ def chunk_document(
 
     valid_from = document.valid_from.isoformat() if document.valid_from else None
     valid_until = document.valid_until.isoformat() if document.valid_until else None
-    source_path = Path(parsed.source_path).as_posix()
+    # Persist the authoring-relative path, never the builder machine's absolute path.
+    source_path = Path(document.path).as_posix()
     result: list[CanonicalChunk] = []
     for index, text in enumerate(merged):
         count = _token_count(tokenizer, text)
