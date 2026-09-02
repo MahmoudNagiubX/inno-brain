@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem  
-> **Version:** 1.7
+> **Version:** 1.8  
 > **Date:** 2026-09-01  
-> **Status:** Phase 1 complete on Windows laptop; Phase 2 authorized but not started; architecture baseline locked; provider/model winners remain benchmark-driven
+> **Status:** Phase 1 complete; Phase 2 implementation in progress; interactive voice validation deferred to final acceptance; architecture baseline locked  
 > **Current development platform:** Windows laptop (primary development and testing environment)  
 > **Current development audio:** Laptop microphone + laptop speakers/headphones  
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM  
@@ -2132,26 +2132,90 @@ The user confirms:
 4. speaking during the placeholder tone stops it quickly;
 5. the runtime returns to listening and can accept another turn afterward.
 
+
+## Phase 2 validation scheduling override — 2026-09-02
+
+The implementation order has changed.
+
+The primary developer does not want to keep stopping development for repeated live speaking gates during intermediate phases. Therefore:
+
+- Phase 2 live microphone interaction validation is no longer a blocking gate for starting Phase 3.
+- Phase 2 implementation must still be finished, tested and documented.
+- Human-speaking validation is deferred to a dedicated **Final Voice Acceptance** track near the end of the project.
+- Raspberry Pi/S330 validation remains separately deferred to deployment/hardening.
+- Current Phase 2 live evidence must be preserved, but it must NOT be used as proof that Smart Turn is good or bad because the attempted interaction was not a controlled acceptance run.
+- Do not tune VAD/Smart Turn thresholds from that uncontrolled attempt.
+- No automated test may be falsely reported as a human interaction PASS.
+
+Current preserved Phase 2 evidence at the time of this decision:
+
+```text
+branch: phase/2-realtime-conversation-core
+state commit: 936ad65
+automated tests: 22 passed
+Ruff: PASS
+offline VAD: 12 speech starts, 7 stops
+live silence test: 0 false starts
+uncontrolled live attempt: 42 events
+  - 14 starts
+  - 14 inference triggers
+  - 14 stops
+normal-turn acceptance: NOT VALIDATED
+Egyptian hesitation acceptance: NOT VALIDATED
+barge-in live acceptance: NOT RUN
+```
+
+The 0/3 hesitation result from the uncontrolled attempt is recorded as evidence only. It is not an accepted benchmark result and is not a reason to change thresholds at this stage.
+
+### Progression rule
+
+Phase 3 may start after Phase 2 reaches:
+
+`PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
+
+This means:
+
+- required Phase 2 code exists;
+- automated tests pass;
+- lint passes;
+- Pipecat/Silero/Smart-Turn runtime initializes;
+- automated/synthetic pipeline and cancellation tests pass;
+- the live-interaction acceptance suite is explicitly deferred and tracked.
+
+This state is sufficient for **development progression**, but is NOT equivalent to production voice validation.
+
+Before the full project can be considered release/event ready, the deferred Final Voice Acceptance track must pass.
+
+
 ## Phase 2 allowed final states
 
 Exactly one:
 
 - `PHASE_2_COMPLETE`
-- `PHASE_2_WAITING_FOR_INTERACTION_CONFIRMATION`
+- `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
 - `PHASE_2_BLOCKED`
+
+`PHASE_2_BLOCKED` is now reserved for an implementation/automated-runtime blocker. A missing or intentionally deferred human-speaking test is NOT, by itself, a Phase 2 blocker.
 
 ## Phase 2 completion action
 
-After the user passes the manual gate:
+For the current laptop development workflow:
 
-- write actual measurements/results to `docs/phase2/PHASE2_REPORT.md`;
-- update this Master Plan with actual Phase 2 results;
-- bump Master Plan patch version from `1.7` to `1.8`;
-- update README status;
-- run the complete test suite and Ruff fresh;
-- commit and push `phase/2-realtime-conversation-core`;
-- do not merge automatically;
-- stop before Phase 3.
+1. finish all non-interactive Phase 2 implementation;
+2. create the barge-in/live-test harness even if it is not run interactively now;
+3. preserve current live JSONL evidence;
+4. run the full automated suite, dependency smoke and Ruff fresh;
+5. write `docs/phase2/PHASE2_REPORT.md`;
+6. set Phase 2 to `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`;
+7. update this Master Plan and bump its patch version;
+8. update README;
+9. commit and push `phase/2-realtime-conversation-core`;
+10. do not merge automatically;
+11. stop before Phase 3.
+
+That state authorizes Phase 3 development.
+
+The deferred human-speaking tests move to Final Voice Acceptance.
 
 ## PHASE 2 — Realtime Conversation Core summary
 
@@ -2167,15 +2231,19 @@ Deliver:
 - basic text echo/state demo.
 - Egyptian turn/pause/barge-in evaluation harness.
 
-Exit criteria:
+Implementation progression criteria:
 
-- user speech start is detected.
-- semantic user-turn stop is detected.
-- Egyptian hesitation test is acceptable.
-- user can interrupt active placeholder playback.
-- no overlapping playback sessions.
-- runtime shuts down cleanly.
-- no Phase 3 provider/brain/RAG work has started.
+- Pipecat/Silero/Smart Turn runtime initializes.
+- realtime PCM path is implemented.
+- state machine and cancellation controller pass automated tests.
+- placeholder playback cannot overlap.
+- synthetic/offline pipeline smoke shuts down cleanly.
+- barge-in/live evaluation harness exists.
+- full automated tests and Ruff pass.
+- deferred live interaction tests are documented explicitly.
+- no Phase 3 provider/brain/RAG work has started before the Phase 2 implementation wrap-up commit.
+
+Human-speaking acceptance criteria are deferred to Final Voice Acceptance and are not deleted.
 
 
 ## PHASE 3 — Speech + Brain + RAG
@@ -2234,7 +2302,7 @@ Exit criteria:
 - AI cannot send raw motor commands.
 - screen can show event entities.
 
-## PHASE 6 — Event Hardening
+## PHASE 6 — Event Hardening + Final Voice Acceptance
 
 Deliver:
 
@@ -2245,12 +2313,31 @@ Deliver:
 - API outage fallback.
 - long-duration testing.
 - final golden evaluation set.
+- **Final Voice Acceptance** for all deferred human-speaking gates.
+
+### Final Voice Acceptance must include
+
+On the completed system, not an isolated early-phase toy harness:
+
+1. intentional silence/background false-trigger test;
+2. normal Egyptian turn start/end;
+3. Egyptian thinking-pause/hesitation continuation;
+4. correction/afterthought turn;
+5. real assistant-output barge-in;
+6. post-interruption context continuation;
+7. repeated multi-turn Egyptian conversation;
+8. code-switching;
+9. noisy-room test;
+10. final production-hardware revalidation on Pi/S330 before event deployment.
+
+The earlier Phase 2 live JSONL attempt remains diagnostic evidence only and does not replace this acceptance suite.
 
 Exit criteria:
 
 - stable multi-hour run.
 - acceptable event-noise recognition.
 - interruption reliable.
+- deferred Final Voice Acceptance passes.
 - no critical event fact hallucinated in golden tests.
 - graceful fallback works.
 
@@ -2698,6 +2785,17 @@ Pepper realtime AI:
 ---
 
 # 43. Change Log
+
+## v1.8 — 2026-09-02
+
+- Changed validation scheduling so intermediate live-speaking gates no longer repeatedly stop development.
+- Added `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED` as a valid development-progression state.
+- Preserved Phase 2 live evidence from commit `936ad65` as diagnostic evidence rather than an accepted benchmark.
+- Explicitly prohibited VAD/Smart Turn threshold tuning based on the uncontrolled Phase 2 speaking attempt.
+- Authorized Phase 3 after Phase 2 implementation/automated verification is complete, even when human-speaking validation is deferred.
+- Moved normal-turn, Egyptian hesitation, correction and barge-in human acceptance into a dedicated Final Voice Acceptance track.
+- Expanded Phase 6 to include Final Voice Acceptance on the completed system.
+- Kept Raspberry Pi/S330 production validation deferred to hardening/deployment.
 
 ## v1.7 — 2026-09-02
 
