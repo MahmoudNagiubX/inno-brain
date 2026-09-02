@@ -7,6 +7,7 @@ from .errors import EventInstallError
 from .models import EventPackageManifest
 
 _VERSION_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+_HEALTH_KEYS = frozenset({"chunks", "fts", "vec", "embedding_rows"})
 
 
 def version_tuple(version: str) -> tuple[int, int, int]:
@@ -33,7 +34,7 @@ class InstalledEventRecord:
     def healthy(self) -> bool:
         return (
             self.database_path.is_file()
-            and bool(self.health)
+            and set(self.health) == _HEALTH_KEYS
             and len(set(self.health.values())) == 1
         )
 

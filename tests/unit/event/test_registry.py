@@ -62,6 +62,30 @@ def test_registry_verifies_manifest_report_identity_and_health(tmp_path: Path) -
     )
     assert len(registry.list()) == 1
 
+    partial = tmp_path / "events" / "installed" / "partial" / "1.2.3" / ("c" * 64)
+    partial.mkdir(parents=True)
+    (partial / "manifest.json").write_text(
+        (tmp_path / "events" / "installed" / "event-alpha" / "1.2.3" / ("a" * 64) / "manifest.json")
+        .read_text(encoding="utf-8")
+        .replace("event-alpha", "partial")
+        .replace("a" * 64, "c" * 64),
+        encoding="utf-8",
+    )
+    (partial / "install_report.json").write_text(
+        json.dumps(
+            {
+                "event_id": "partial",
+                "event_version": "1.2.3",
+                "build_id": "c" * 64,
+                "health": {"chunks": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (partial / "event.sqlite3").touch()
+    assert len(registry.list()) == 2
+    assert registry.get("partial").healthy is False
+
 
 def test_version_comparison_uses_integer_semver_components() -> None:
     assert version_tuple("10.2.3") > version_tuple("2.12.99")
