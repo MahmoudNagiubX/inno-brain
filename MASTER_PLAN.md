@@ -2189,6 +2189,7 @@ Before the full project can be considered release/event ready, the deferred Fina
 ## Phase 2 continuation wrap-up - 2026-09-02
 
 **Phase 2 state:** `PHASE_2_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
+**Phase 2 implementation wrap-up commit:** `dc6988959cf0366db4cd3b2e00b5646758c29c4f`
 
 The non-interactive Phase 2 implementation is complete on the Windows laptop branch. The existing Task 12 live evidence was preserved, no human-speaking tests were rerun, and VAD/Smart Turn thresholds were unchanged.
 
