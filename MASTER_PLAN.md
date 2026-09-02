@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.11
-> **Date:** 2026-09-02
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 authorized but not started
+> **Version:** 1.12
+> **Date:** 2026-09-01
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 authorized and designed but not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -2802,54 +2802,689 @@ Progression criteria:
 - no exact event fact depends on LLM invention;
 - Phase 4 can build event-package ingestion against stable knowledge interfaces.
 
+
+
 ## Phase 3 implementation results — v1.11
 
 **Final state:** `PHASE_3_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
 
-- Branch `phase/3-speech-brain-rag` was created from Phase 2 HEAD
-  `356d0a669ea50b9e1932ce772de9133b76e7ed56`.
-- Pinned runtime dependencies were installed and imported on the Windows laptop:
-  Pipecat `1.8.1`, Speechmatics Voice `0.2.8`, Deepgram SDK `7.8.0`, Azure Speech
-  `1.51.2`, ONNX Runtime `1.24.3`, and sqlite-vec `0.1.9` (`v0.1.9`).
-- Selected provider adapters/configuration: Speechmatics `ar` primary with external
-  endpointing, Deepgram Nova-3 `ar-EG` fallback, Groq
-  `openai/gpt-oss-120b` with same-provider `openai/gpt-oss-20b` fallback, and Azure
-  `ar-EG-ShakirNeural` at 16 kHz mono PCM.
-- Exact event facts are stored in structured SQLite tables and bypass the LLM. The
-  deterministic fixture exact-route checks passed `3/3` (`100%`).
-- The 16-query fixture benchmark passed the required thresholds:
-  `RECALL_AT_5=0.9375`, `MRR=0.9375`. The RRF algorithm test passed. This is
-  `HYBRID_ALGORITHM_TEST` evidence; the real E5 asset/model attempt timed out and
-  `REAL_E5_RETRIEVAL_TEST` remains deferred.
-- Full automated verification passed: `57 passed, 1 skipped`; Ruff passed; FTS5
-  passed; sqlite-vec reported `v0.1.9`; prohibited heavy dependency and secret
-  scans were clean; no generated artifacts are tracked.
-- Conditional provider smoke was run with `--all-configured`; Speechmatics,
-  Deepgram, Groq, and Azure each returned `SKIPPED_MISSING_CREDENTIAL`.
-- Human voice/provider acceptance, real TTS listening, noisy-room testing, and
-  Raspberry Pi 5 + Anker S330 validation remain deferred to Final Voice Acceptance
-  and deployment/hardening.
+Final pushed branch state:
 
-Phase 4 is authorized by the automated/RAG gates and this deferred validation state.
-Phase 4 work has not started.
+```text
+branch: phase/3-speech-brain-rag
+branch HEAD: 3e8d65c078dc6e4bd7ee78d6a4177fc9416de097
+```
+
+Fresh Phase 3 results recorded from the pushed branch:
+
+- Pytest: `57 passed, 1 skipped`.
+- Ruff: PASS.
+- Structured exact fixture queries: `3/3` (`100%`).
+- Hybrid algorithmic/fixture RAG: Recall@5 `0.9375`, MRR `0.9375`.
+- sqlite-vec: `0.1.9`.
+- Speechmatics adapter: implemented; provider smoke skipped because credential missing.
+- Deepgram adapter: implemented; provider smoke skipped because credential missing.
+- Groq adapter: implemented; provider smoke skipped because credential missing.
+- Azure `ar-EG-ShakirNeural` adapter: implemented; provider smoke skipped because credential/region missing.
+- Real E5 model validation: deferred after an asset-download timeout.
+- Human voice acceptance: deferred.
+- Raspberry Pi 5 / Anker S330 validation: deferred.
+- Phase 4: authorized, not started.
+
+Important interpretation:
+
+The `0.9375` retrieval metrics are valid evidence for the deterministic hybrid algorithm/fixture benchmark. They are not a substitute for a successful real-E5 retrieval benchmark. Real E5 remains a tracked validation debt.
 
 
-## PHASE 4 — Dynamic Event Package
+# 32.4 Phase 4 Execution Contract — Portable Dynamic Event Packages
+
+**Execution status at v1.12 creation:** `AUTHORIZED_NOT_STARTED`
+
+Phase 4 replaces the Phase 3 hard-coded fixture/build script with a production-oriented event-content supply chain.
+
+The core principle is:
+
+```text
+AUTHORING SOURCES
+      ↓
+OFF-DEVICE BUILDER
+      ↓
+SIGNED PORTABLE .innoevent PACKAGE
+      ↓
+TARGET-LOCAL INSTALL/COMPILE
+      ↓
+IMMUTABLE ACTIVE EVENT DATABASE
+      ↓
+ATOMIC EVENT SWITCH
+```
+
+This phase must make event replacement a content/deployment operation rather than an application-code change.
+
+## Phase 4 branch and inheritance
+
+- Branch: `phase/4-dynamic-event-package`.
+- Create it from Phase 3 branch `phase/3-speech-brain-rag`.
+- Planning-time Phase 3 base HEAD: `3e8d65c078dc6e4bd7ee78d6a4177fc9416de097`.
+- Do not branch from stale `main`.
+- Do not merge automatically.
+
+## Phase 4 package architecture decision
+
+The V1 event package is **self-contained**.
+
+Final portable file extension:
+
+```text
+.innoevent
+```
+
+Container format:
+
+```text
+ZIP
+```
+
+The archive is a deployment artifact, not an arbitrary ZIP folder.
+
+A production `.innoevent` package contains:
+
+```text
+manifest.json
+signature.json
+
+structured/
+  event.yaml
+  locations.yaml
+  speakers.yaml
+  sessions.yaml
+  booths.yaml
+  aliases.yaml
+  glossary.yaml
+
+documents/
+  ... original local event/client source files ...
+
+knowledge/
+  chunks.jsonl
+  embeddings.npy
+  build_meta.json
+
+assets/
+  ... optional declared images/maps/screen assets ...
+
+extensions/
+  ... optional namespaced future extension payloads ...
+
+reports/
+  build_report.json
+```
+
+Every payload file is declared and SHA-256 hashed by `manifest.json`.
+
+`signature.json` signs the canonical manifest using Ed25519.
+
+No file may be present in the archive unless declared.
+
+## Why self-contained rather than live document URLs
+
+Do NOT let the event runtime ingest arbitrary URLs.
+
+Reasons:
+
+- event-day internet may be unstable;
+- source content can change after validation;
+- remote documents create SSRF and supply-chain risk;
+- reproducibility and rollback become difficult;
+- a Pi should not run heavyweight document extraction during an event;
+- event knowledge must be auditable and immutable after validation.
+
+Remote updating is still supported safely by distributing the **whole signed `.innoevent` package** over HTTPS.
+
+The runtime may download a package artifact from a configured allowlisted HTTPS origin, verify size/hash/signature, stage it, and only then install/activate it.
+
+The package manifest itself may not instruct the builder/runtime to fetch arbitrary HTTP resources.
+
+## Builder/runtime separation
+
+### Builder side — laptop/server
+
+Builder responsibilities:
+
+- authoring-schema validation;
+- Docling conversion;
+- OCR/table/layout extraction where needed;
+- chunking;
+- normalization;
+- E5 embedding generation;
+- package checksums;
+- build validation;
+- Ed25519 signing.
+
+Builder-only document dependency:
+
+```text
+docling==2.124.0
+```
+
+Use a separate builder virtual environment:
+
+```text
+.venv-event-builder
+```
+
+Docling/PyTorch are NOT production robot runtime dependencies.
+
+### Runtime side — laptop/Pi
+
+Runtime responsibilities:
+
+- package verification;
+- signature verification;
+- safe extraction;
+- target-local SQLite compilation;
+- FTS5 creation;
+- target-local sqlite-vec `vec0` rebuild from portable embeddings;
+- package registry;
+- activation;
+- rollback;
+- active-event health.
+
+The runtime does not need Docling or PyTorch.
+
+## Document processing policy
+
+Core V1 accepted event sources:
+
+- PDF.
+- DOCX.
+- XLSX.
+- PPTX.
+- HTML/XHTML.
+- Markdown.
+- CSV.
+- TXT.
+- PNG/JPEG/TIFF/BMP/WEBP scanned documents.
+
+Legacy DOC/XLS/PPT can be supported by the builder only when its LibreOffice prerequisite is available. Absence of LibreOffice must produce an explicit validation error rather than silently losing content.
+
+Docling remote services:
+
+```text
+enable_remote_services = false
+allow_external_plugins = false
+```
+
+HTML remote resource fetching is disabled.
+
+Source documents are local files inside the event authoring tree.
+
+Docling model artifacts should be prefetched for reproducible/offline builds.
+
+## Docling build policy
+
+Current researched baseline:
+
+```text
+Docling 2.124.0
+```
+
+For RAG chunking, use Docling structure-aware parsing and E5-token-aware chunking.
+
+Phase 4 chunk configuration:
+
+```text
+embedding tokenizer: intfloat/multilingual-e5-small
+max chunk tokens: 384
+merge peers: true
+table serialization: Markdown where available
+```
+
+The hard 384-token chunk budget leaves headroom under E5's 512-token input limit for contextual headings/metadata and the `passage:` prefix.
+
+Do not split structured YAML rows into RAG chunks; structured truth remains relational.
+
+## Portable embedding rule
+
+The `.innoevent` package contains a portable NumPy matrix:
+
+```text
+knowledge/embeddings.npy
+dtype: little-endian float32
+shape: [chunk_count, 384]
+allow_pickle: false
+```
+
+Each `chunks.jsonl` row contains `embedding_row` mapping the chunk to the matrix row.
+
+Production packages require real multilingual-E5 embeddings.
+
+Deterministic fake embeddings are allowed only in test/development packages and force `deployable = false`.
+
+A production runtime refuses a non-deployable package.
+
+## sqlite-vec target-local rule
+
+Do not put a writable cross-platform `vec0` database in `.innoevent`.
+
+Installation builds `vec_chunks` on the target machine from `embeddings.npy`.
+
+This preserves the Phase 3 rule `vec0 = rebuildable derived cache` and avoids Windows → Linux/ARM writable portability assumptions.
+
+## Package schema/versioning
+
+Two different versions exist:
+
+```text
+package_schema_version
+event_version
+```
+
+Initial package schema:
+
+```text
+1.0
+```
+
+Event version:
+
+```text
+semantic version: MAJOR.MINOR.PATCH
+```
+
+The runtime rejects an unknown package schema major version. Minor schema evolution remains backward-compatible inside the same major.
+
+A normal activation must not silently downgrade the same event to an older semantic version. Rollback is a separate explicit operation.
+
+## Manifest
+
+`manifest.json` is UTF-8 canonical JSON:
+
+- sorted keys;
+- no insignificant whitespace;
+- newline terminated;
+- deterministic serialization.
+
+Required logical fields:
+
+```text
+package_type
+package_schema_version
+event_id
+event_version
+client_id
+title
+default_locale
+timezone
+created_at_utc
+build_id
+builder
+deployable
+runtime_compat
+embedding
+chunking
+structured_schema
+extensions
+files
+```
+
+`files` records `path`, `sha256`, `size_bytes`, and `role`.
+
+`build_id` is a SHA-256 digest of normalized authoring metadata, sorted source-file hashes, builder schema version, chunking configuration, and embedding model identity/revision/dimension. It must not depend on wall-clock time.
+
+## Ed25519 signing
+
+Production event packages must be signed.
+
+Algorithm:
+
+```text
+Ed25519
+```
+
+Runtime crypto dependency:
+
+```text
+cryptography==50.0.1
+```
+
+Signing input is the exact canonical `manifest.json` bytes.
+
+`signature.json` contains:
+
+```text
+algorithm
+key_id
+signature_base64
+```
+
+The private signing key exists only on the build/operations machine and is never stored in the repository, event package, robot, or committed configuration.
+
+Runtime receives one or more trusted public keys.
+
+Development can explicitly allow unsigned packages only when `runtime.environment != production`. Production mode always requires a trusted valid signature.
+
+## Archive safety
+
+Treat `.innoevent` as untrusted until validation finishes.
+
+Before extraction:
+
+- reject absolute paths;
+- reject `..` traversal;
+- reject backslash/drive-path tricks;
+- reject symlink entries;
+- reject duplicate paths;
+- reject Unicode/case-fold path collisions;
+- reject undeclared files;
+- reject encrypted entries;
+- reject unsupported compression methods.
+
+Limits:
+
+```text
+max archive file size: 512 MiB
+max declared files: 2,000
+max total uncompressed size: 1 GiB
+max single uncompressed file: 256 MiB
+```
+
+Extraction writes into a fresh staging directory and no archive path may escape staging.
+
+Do not use `zipfile.Path` as a security boundary.
+
+## Authoring structured schema
+
+Core authoring structured files:
+
+```text
+structured/event.yaml
+structured/locations.yaml
+structured/speakers.yaml
+structured/sessions.yaml
+structured/booths.yaml
+structured/aliases.yaml
+structured/glossary.yaml
+```
+
+All use strict Pydantic models with `extra="forbid"`.
+
+Required validation includes unique IDs, valid foreign references, valid IANA timezone, timezone-aware session timestamps, `starts_at < ends_at`, schedule window consistency, location overlap detection, speaker double-booking detection, alias uniqueness, and local source-file existence.
+
+Warnings never become silent data loss.
+
+## Future extension mechanism
+
+Manifest supports namespaced extensions:
+
+```text
+extensions:
+  - namespace: innobrain.navigation
+    schema_version: 1.0
+    paths:
+      - extensions/navigation/waypoints.yaml
+```
+
+Core Phase 4 preserves declared unknown extension payloads and does not execute them. Phase 5 can recognize a navigation extension while keeping package schema 1.x.
+
+## Knowledge metadata upgrade
+
+Phase 4 packages carry:
+
+- event_id;
+- event_version;
+- client_id;
+- document_id;
+- source_type;
+- language;
+- authority_level;
+- valid_from;
+- valid_until;
+- chunk_id.
+
+Phase 4 upgrades the runtime SQLite schema so these fields are first-class where appropriate.
+
+Runtime event databases contain exactly one event ID + event version.
+
+## Authority and validity
+
+Document authority levels:
+
+```text
+official
+approved
+reference
+marketing
+```
+
+Default trust ordering:
+
+```text
+official > approved > reference > marketing
+```
+
+Expired content is excluded from current factual answers unless the query explicitly asks historical information.
+
+Conflicting active high-authority evidence is surfaced as a conflict rather than silently resolved.
+
+## Installation layout
+
+Default:
+
+```text
+runtime_data/
+  events/
+    installed/
+      <event_id>/
+        <event_version>/
+          <build_id>/
+            event.sqlite3
+            manifest.json
+            signature.json
+            install_report.json
+            source.innoevent
+    state/
+      active_event.json
+      activation_history.jsonl
+```
+
+Runtime DBs are target-local and immutable after successful install.
+
+Updating event content means installing a new package version/build, never patching the active DB in place.
+
+## Atomic activation
+
+Activation follows:
+
+```text
+verify installed package
+      ↓
+open new DB read-only
+      ↓
+run health checks
+      ↓
+ensure conversation runtime is idle
+      ↓
+atomically replace active_event.json
+      ↓
+swap active event context
+      ↓
+reset visitor/session memory
+      ↓
+record activation history
+```
+
+Use temp-file + fsync + `os.replace()` for the active pointer.
+
+If staging/validation fails, the previous active event remains unchanged.
+
+## Active DB access
+
+Add explicit read-only database support using SQLite `mode=ro`.
+
+`VectorStore` must support opening an existing vec table without trying to create or commit it.
+
+Builder/installer connections remain writable.
+
+## Event switching and memory isolation
+
+Switching must close the old event context, open only the new DB, reset session memory, clear active event entities, and never reuse old retriever/repository connections.
+
+Phase 4 must contain an automated two-event leakage test.
+
+## Rollback
+
+Keep prior healthy installed versions/builds.
+
+Rollback is explicit, re-verifies the chosen prior package, atomically activates it, and records the action.
+
+Normal activation rejects accidental semantic-version downgrade.
+
+## Controlled remote package distribution
+
+Optional Phase 4 distribution may fetch a `.innoevent` package.
+
+Rules:
+
+- HTTPS only;
+- disabled by default;
+- host must be allowlisted;
+- download limit 512 MiB;
+- temporary destination;
+- remote filename not trusted;
+- redirects cannot escape allowlist;
+- full normal package verification after download.
+
+This feature downloads package artifacts only; it never makes remote webpages runtime RAG sources.
+
+## Build profiles
+
+Development may use unsigned/test embeddings only when explicitly requested and is always `deployable=false`.
+
+Production must use real E5, zero required parse failures, strict structured validation, a trusted Ed25519 signature, `deployable=true`, and package self-validation.
+
+Production runtime accepts only deployable production packages.
+
+## Real E5 validation debt
+
+Phase 3 real E5 validation timed out.
+
+Phase 4 retries E5 asset prefetch with bounded retries and the Hugging Face cache.
+
+If real E5 remains unavailable, implementation/tests may continue but production-package smoke is deferred. The phase can end only as `PHASE_4_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`; synthetic vectors cannot substitute for production validation.
+
+## Docling model prefetch
+
+Provide explicit builder setup using Docling's supported model prefetch command:
+
+```text
+docling-tools models download
+```
+
+Build processing uses local artifacts with remote services/plugins disabled.
+
+## Phase 4 reports
+
+Every build creates `reports/build_report.json` with identity, source checksums, row counts, parse status, versions, chunk stats, embedding checks, signature state, warnings/errors and durations.
+
+Every install creates `install_report.json` with signature verification, checksums, schema compatibility, DB/FTS/vec counts, health checks, platform and install timestamp.
+
+## Phase 4 automated gates
+
+Required:
+
+- all Phase 1–3 tests remain green;
+- Phase 4 tests pass;
+- Ruff passes;
+- deterministic build ID;
+- archive traversal/symlink/duplicate/collision defenses;
+- tamper/hash/signature rejection;
+- untrusted key rejection;
+- production unsigned/non-deployable rejection;
+- invalid FK/timezone/timestamp rejection;
+- room overlap and speaker double-booking detection;
+- target-local FTS/vec rebuild;
+- read-only installed DB;
+- atomic two-event switch;
+- zero old-event exact/RAG leakage;
+- session memory reset;
+- failed activation preserves old active event;
+- explicit rollback;
+- accidental downgrade rejection;
+- undeclared file rejection;
+- package quota enforcement.
+
+## Phase 4 real smoke gates
+
+When builder assets are available:
+
+1. create builder venv;
+2. install `docling==2.124.0`;
+3. prefetch Docling artifacts;
+4. prefetch real multilingual-E5 assets;
+5. build a representative sample package;
+6. verify;
+7. install;
+8. run exact/RAG queries;
+9. switch to a second event;
+10. verify zero old-event leakage;
+11. rollback.
+
+Do not invent binary fixtures only to satisfy the smoke.
+
+## Phase 4 allowed final states
+
+Exactly one:
+
+- `PHASE_4_COMPLETE`
+- `PHASE_4_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
+- `PHASE_4_BLOCKED`
+
+Implementation-complete/validation-deferred authorizes Phase 5 when security, isolation, switching and automated gates pass, while an asset-dependent real smoke remains explicitly deferred.
+
+## Phase 4 completion action
+
+After gates:
+
+1. write `docs/phase4/PHASE4_REPORT.md`;
+2. update Master Plan;
+3. bump v1.12 → v1.13;
+4. update README;
+5. preserve all validation debts;
+6. run fresh verification;
+7. commit/push `phase/4-dynamic-event-package`;
+8. do not merge;
+9. stop before Phase 5.
+
+## PHASE 4 — Dynamic Event Package summary
 
 Deliver:
 
-- event package schema.
-- event versioning.
-- document ingestion workflow.
-- structured import.
-- vector index build.
-- event switching.
-- validation report.
+- `.innoevent` schema;
+- strict authoring models;
+- Docling off-device ingestion;
+- E5-aware structure-preserving chunking;
+- portable embeddings;
+- deterministic build IDs;
+- SHA-256 integrity;
+- Ed25519 signatures;
+- secure archive verification/extraction;
+- target-local SQLite/FTS5/vec compilation;
+- package registry;
+- read-only runtime DB;
+- atomic activation;
+- memory isolation;
+- rollback;
+- optional allowlisted HTTPS package distribution;
+- validation/build/install reports;
+- two-event isolation tests.
 
-Exit criteria:
+Exit:
 
-- replace event package without modifying application code.
-- old event data does not leak into new event.
+- replace an event without modifying application code;
+- old event data cannot leak;
+- invalid/tampered packages cannot activate;
+- activation failure cannot destroy the previous healthy event.
+
 
 ## PHASE 5 — Robot + Screen Integration
 
@@ -3351,20 +3986,35 @@ Pepper realtime AI:
 
 # 43. Change Log
 
+## v1.12 — 2026-09-02
+
+- Designed and authorized Phase 4 — Portable Dynamic Event Packages.
+- Locked Phase 4 branch to `phase/4-dynamic-event-package`, based on Phase 3 HEAD `3e8d65c078dc6e4bd7ee78d6a4177fc9416de097`.
+- Selected self-contained `.innoevent` ZIP packages rather than live document URLs.
+- Selected off-device Docling build and lightweight target-local runtime installation.
+- Pinned builder Docling baseline to `2.124.0`.
+- Added E5-token-aware structure-preserving chunking with a 384-token target.
+- Added portable `embeddings.npy` and target-local sqlite-vec rebuild.
+- Added deterministic build IDs and immutable installed runtime DBs.
+- Added SHA-256 payload integrity and Ed25519 production signing.
+- Added secure ZIP validation/extraction limits and path/symlink/collision defenses.
+- Added package schema versioning separate from semantic event versioning.
+- Added namespaced extensions for later navigation/screen payloads.
+- Added authority/validity metadata and one-event-version-per-runtime-DB isolation.
+- Added atomic active-event pointer, memory reset, activation history and explicit rollback.
+- Added optional allowlisted HTTPS distribution of complete signed packages, while forbidding live remote document ingestion.
+- Added production/development build profiles.
+- Preserved real E5 validation as explicit debt; synthetic vectors can never mark a production package deployable.
+
 ## v1.11 — 2026-09-02
 
-- Completed the Phase 3 Speech + Brain + Grounded Hybrid RAG implementation on
-  `phase/3-speech-brain-rag` from Phase 2 HEAD `356d0a669ea50b9e1932ce772de9133b76e7ed56`.
-- Added pinned provider adapters/configuration for Speechmatics primary STT,
-  Deepgram Nova-3 fallback, Groq GPT-OSS 120B, and Azure Shakir male Egyptian TTS.
-- Added structured SQLite exact facts, FTS5, rebuildable sqlite-vec `0.1.9`,
-  ONNX E5 boundary, RRF retrieval, grounding, session memory, cancellation,
-  text demo, and credential-gated provider smoke.
-- Measured 16-query fixture Recall@5 `0.9375` and MRR `0.9375`; full pytest
-  passed `57` tests with one opt-in real-E5 skip; Ruff and safety scans passed.
-- Recorded missing-credential provider smoke skips and real-E5 timeout as deferred
-  validation; human voice and Pi/S330 validation remain in Final Voice Acceptance.
-- Authorized Phase 4 after the automated/RAG gates; no Phase 4 work was started.
+- Recorded Phase 3 state `PHASE_3_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`.
+- Recorded Phase 3 branch HEAD `3e8d65c078dc6e4bd7ee78d6a4177fc9416de097`.
+- Recorded `57 passed, 1 skipped` and Ruff PASS.
+- Recorded fixture RAG Recall@5 `0.9375` and MRR `0.9375`.
+- Recorded provider smoke as skipped for missing credentials.
+- Recorded real E5 validation deferred after asset-download timeout.
+- Authorized Phase 4 without starting it.
 
 ## v1.10 — 2026-09-02
 

@@ -1,34 +1,34 @@
-# Phase 3 Task Checklist
+# Phase 4 Task Checklist
 
-- [x] Task 0: Safety preflight and branch from Phase 2.
-- [x] Task 1: Synchronize Phase 3 design, Master Plan and state.
-- [x] Task 2: Dependencies, provider config and secret-safe environment contract.
-- [x] Task 3: Provider errors, availability and fallback registry.
-- [x] Checkpoint A: config/dependency/registry verification.
-- [x] Task 4: Arabic normalization and evidence models.
-- [x] Task 5: SQLite connection, schema, FTS5 and structured repository.
-- [x] Task 6: Deterministic fixture event and DB builder.
-- [x] Checkpoint B: fixture DB, exact routes and FTS5 verification.
-- [x] Task 7: Multilingual E5 ONNX assets and embedding provider.
-- [x] Task 8: sqlite-vec store and rebuildable vector index.
-- [x] Task 9: Hybrid retrieval and RRF.
-- [x] Task 10: Structured exact resolver.
-- [x] Task 11: RAG evaluation set and benchmark.
-- [x] Checkpoint C: vector health and RAG metric gates.
-- [x] Task 12: Ten-turn session memory and delivery-safe commit.
-- [x] Task 13: Grounding policy, persona and sentence chunker.
-- [x] Task 14: Grounded orchestrator and local degraded behavior.
-- [x] Checkpoint D: grounding and degradation verification.
-- [x] Task 15: Groq LLM adapter.
-- [x] Task 16: Speechmatics primary STT adapter.
-- [x] Task 17: Deepgram fallback STT adapter.
-- [x] Task 18: Azure Shakir TTS adapter.
-- [x] Checkpoint E: provider fake/conditional smoke verification.
-- [x] Task 19: Interruptible PCM streaming playback.
-- [x] Task 20: PCM observer hook and VoiceBrainRuntime.
-- [x] Checkpoint F: synthetic voice/brain/cancellation flow.
-- [x] Task 21: End-to-end text demo.
-- [x] Task 22: Non-interactive provider smoke.
-- [x] Task 23: Full RAG and automated verification gate.
-- [x] Task 24: Update Final Voice Acceptance tracker.
-- [x] Task 25: Report, Master Plan v1.11, README, push and stop.
+- [ ] Task 0: Safety preflight and branch from Phase 3.
+- [ ] Task 1: Synchronize Phase 4 design, Master Plan and state.
+- [ ] Task 2: Runtime config, cryptography and separate builder dependency boundary.
+- [ ] Task 3: Strict package errors and deterministic manifest models.
+- [ ] Task 4: Strict structured authoring validation.
+- [ ] Task 5: Alpha/Beta local event fixtures.
+- [ ] Task 6: Ed25519 signing and trusted-key verification.
+- [ ] Task 7: Deterministic secure archive writer/verifier.
+- [ ] Task 8: Package integrity and production-policy verifier.
+- [ ] Task 9: Knowledge schema v2 event metadata.
+- [ ] Task 10: Read-only database and open-existing VectorStore.
+- [ ] Checkpoint A: Package contract and target knowledge tests pass.
+- [ ] Task 11: Builder asset-prefetch isolation.
+- [ ] Task 12: Lazy Docling local parser.
+- [ ] Task 13: Structure-aware 384-token chunker.
+- [ ] Task 14: Portable real/test embedding matrix.
+- [ ] Task 15: Deterministic build ID and report.
+- [ ] Task 16: Full `.innoevent` builder and build CLI.
+- [ ] Checkpoint B: Builder tests and runtime Docling isolation pass.
+- [ ] Task 17: Target-local installer.
+- [ ] Task 18: Installed registry and health.
+- [ ] Task 19: Atomic activation and explicit rollback.
+- [ ] Task 20: Active runtime context and session reset.
+- [ ] Task 21: Two-event exact/RAG no-leakage E2E.
+- [ ] Task 22: Optional allowlisted HTTPS package distribution.
+- [ ] Task 23: Runtime CLI operations.
+- [ ] Checkpoint C: Install, switching, rollback and distribution tests pass.
+- [ ] Task 24: Bounded real Docling/E5 smoke or explicit deferral.
+- [ ] Task 25: Phase 4 security/failure matrix checkpoint.
+- [ ] Task 26: Full project and isolation verification.
+- [ ] Task 27: Phase 4 report, Master Plan v1.13, README and Phase 5 authorization.
+- [ ] Task 28: Fresh final verification, commit, push and stop before Phase 5.
