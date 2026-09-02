@@ -3,8 +3,8 @@
 **Phase:** 2 — Realtime Conversation Core
 **Branch:** `phase/2-realtime-conversation-core`
 **Status:** `IN_PROGRESS`
-**Last completed task:** Task 6 — Implement interruption controller and cancellation metrics
-**Next task:** Task 7 — Implement async laptop PCM input pump
+**Last completed task:** Task 7 — Implement async laptop PCM input pump
+**Next task:** Task 8 — Implement Pipecat Silero + Smart Turn runtime
 **Development platform:** Windows laptop
 **Primary language:** Egyptian Arabic (`ar-EG`)
 **Pipecat:** 1.8.1 import/model initialization PASS
