@@ -10,7 +10,7 @@ Current development: Windows laptop + laptop microphone/output.
 
 Target deployment: Raspberry Pi 5 8 GB + Anker PowerConf S330; production hardware validation remains pending.
 
-Current status: Phase 2 implementation complete; interactive voice acceptance deferred.
+Current status: Phase 3 implementation complete; provider and interactive voice acceptance deferred.
 
 Implemented:
 - realtime PCM pipeline
@@ -19,12 +19,21 @@ Implemented:
 - Smart Turn v3
 - conversation state machine
 - cancellation/interruption framework
+- Speechmatics primary STT with Deepgram Nova-3 fallback adapters
+- Groq grounded LLM adapter with `openai/gpt-oss-120b` baseline
+- Azure `ar-EG-ShakirNeural` TTS adapter
+- structured SQLite event facts and FTS5 + sqlite-vec/RRF retrieval
+- multilingual-E5 ONNX embedding boundary
+- ten-turn/300-second grounded session memory
+- deterministic exact, RAG, degraded, and no-evidence text paths
 
 Deferred validation:
 - controlled Egyptian turn/hesitation test
 - live barge-in acceptance
 - final end-to-end voice acceptance
 - Raspberry Pi/S330 production validation
+- real E5 model retrieval benchmark
+- provider smoke with live credentials
 
 Next:
-Phase 3 — Speech + Brain + RAG.
+Phase 4 — Dynamic Event Package (authorized; not started).

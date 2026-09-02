@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.10
-> **Date:** 2026-09-01
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 authorized and designed but not started
+> **Version:** 1.11
+> **Date:** 2026-09-02
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 authorized but not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -2802,6 +2802,37 @@ Progression criteria:
 - no exact event fact depends on LLM invention;
 - Phase 4 can build event-package ingestion against stable knowledge interfaces.
 
+## Phase 3 implementation results — v1.11
+
+**Final state:** `PHASE_3_IMPLEMENTATION_COMPLETE_VALIDATION_DEFERRED`
+
+- Branch `phase/3-speech-brain-rag` was created from Phase 2 HEAD
+  `356d0a669ea50b9e1932ce772de9133b76e7ed56`.
+- Pinned runtime dependencies were installed and imported on the Windows laptop:
+  Pipecat `1.8.1`, Speechmatics Voice `0.2.8`, Deepgram SDK `7.8.0`, Azure Speech
+  `1.51.2`, ONNX Runtime `1.24.3`, and sqlite-vec `0.1.9` (`v0.1.9`).
+- Selected provider adapters/configuration: Speechmatics `ar` primary with external
+  endpointing, Deepgram Nova-3 `ar-EG` fallback, Groq
+  `openai/gpt-oss-120b` with same-provider `openai/gpt-oss-20b` fallback, and Azure
+  `ar-EG-ShakirNeural` at 16 kHz mono PCM.
+- Exact event facts are stored in structured SQLite tables and bypass the LLM. The
+  deterministic fixture exact-route checks passed `3/3` (`100%`).
+- The 16-query fixture benchmark passed the required thresholds:
+  `RECALL_AT_5=0.9375`, `MRR=0.9375`. The RRF algorithm test passed. This is
+  `HYBRID_ALGORITHM_TEST` evidence; the real E5 asset/model attempt timed out and
+  `REAL_E5_RETRIEVAL_TEST` remains deferred.
+- Full automated verification passed: `57 passed, 1 skipped`; Ruff passed; FTS5
+  passed; sqlite-vec reported `v0.1.9`; prohibited heavy dependency and secret
+  scans were clean; no generated artifacts are tracked.
+- Conditional provider smoke was run with `--all-configured`; Speechmatics,
+  Deepgram, Groq, and Azure each returned `SKIPPED_MISSING_CREDENTIAL`.
+- Human voice/provider acceptance, real TTS listening, noisy-room testing, and
+  Raspberry Pi 5 + Anker S330 validation remain deferred to Final Voice Acceptance
+  and deployment/hardening.
+
+Phase 4 is authorized by the automated/RAG gates and this deferred validation state.
+Phase 4 work has not started.
+
 
 ## PHASE 4 — Dynamic Event Package
 
@@ -3319,6 +3350,21 @@ Pepper realtime AI:
 ---
 
 # 43. Change Log
+
+## v1.11 — 2026-09-02
+
+- Completed the Phase 3 Speech + Brain + Grounded Hybrid RAG implementation on
+  `phase/3-speech-brain-rag` from Phase 2 HEAD `356d0a669ea50b9e1932ce772de9133b76e7ed56`.
+- Added pinned provider adapters/configuration for Speechmatics primary STT,
+  Deepgram Nova-3 fallback, Groq GPT-OSS 120B, and Azure Shakir male Egyptian TTS.
+- Added structured SQLite exact facts, FTS5, rebuildable sqlite-vec `0.1.9`,
+  ONNX E5 boundary, RRF retrieval, grounding, session memory, cancellation,
+  text demo, and credential-gated provider smoke.
+- Measured 16-query fixture Recall@5 `0.9375` and MRR `0.9375`; full pytest
+  passed `57` tests with one opt-in real-E5 skip; Ruff and safety scans passed.
+- Recorded missing-credential provider smoke skips and real-E5 timeout as deferred
+  validation; human voice and Pi/S330 validation remain in Final Voice Acceptance.
+- Authorized Phase 4 after the automated/RAG gates; no Phase 4 work was started.
 
 ## v1.10 — 2026-09-02
 
