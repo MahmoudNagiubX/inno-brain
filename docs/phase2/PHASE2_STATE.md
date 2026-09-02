@@ -3,8 +3,8 @@
 **Phase:** 2 — Realtime Conversation Core
 **Branch:** `phase/2-realtime-conversation-core`
 **Status:** `IN_PROGRESS`
-**Last completed task:** Task 8 — Implement Pipecat Silero + Smart Turn runtime
-**Next task:** Task 9 — Add Egyptian scenarios and text echo/state demo
+**Last completed task:** Task 9 — Add Egyptian scenarios and text echo/state demo
+**Next task:** Task 10 — Full automated Phase 2 verification checkpoint
 **Development platform:** Windows laptop
 **Primary language:** Egyptian Arabic (`ar-EG`)
 **Pipecat:** 1.8.1 import/model initialization PASS

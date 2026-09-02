@@ -1,0 +1,28 @@
+language: ar-EG
+phase: 2
+
+scenarios:
+  - id: normal_turn
+    instruction: "Say the phrase naturally, then stop."
+    first_part: "ممكن تقولي البرنامج بتاع النهارده؟"
+    continuation: null
+
+  - id: hesitation_turn
+    instruction: "Say first_part, pause 0.8-1.2 seconds, then say continuation."
+    first_part: "بص أنا عايز أعرف..."
+    continuation: "الـsession اللي بعد الضهر فين؟"
+
+  - id: correction_turn
+    instruction: "Say both parts naturally with a short correction pause."
+    first_part: "أنا عايز Session أحمد..."
+    continuation: "لا استنى، قصدي محمد."
+
+  - id: barge_in
+    instruction: "While the placeholder tone is playing, say the phrase."
+    first_part: "معلش وقف"
+    continuation: null
+
+  - id: background_silence
+    instruction: "Stay intentionally silent for 10 seconds."
+    first_part: null
+    continuation: null
