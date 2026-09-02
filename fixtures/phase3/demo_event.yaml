@@ -1,0 +1,63 @@
+event:
+  id: demo-2026
+  title: InnoBrain Demo Event
+  date: "2026-10-15"
+  venue: Innovation Hall
+  timezone: Africa/Cairo
+
+locations:
+  - id: main-stage
+    name: Main Stage
+    level: Ground
+    zone: A
+    description: المسرح الرئيسي جنب المدخل الكبير.
+  - id: hall-b
+    name: Hall B
+    level: Ground
+    zone: B
+    description: قاعة الورش والتطبيقات العملية.
+  - id: expo-a12
+    name: Expo A12
+    level: Ground
+    zone: Expo
+    description: منطقة البوثات رقم A.
+
+speakers:
+  - id: mohamed-adel
+    name: Dr. Mohamed Adel
+    bio: متخصص في تطبيقات الذكاء الاصطناعي والروبوتات.
+  - id: sara-hassan
+    name: Sara Hassan
+    bio: مهندسة منتجات تعمل على تصميم تجارب تفاعلية.
+
+sessions:
+  - id: future-ai
+    title: Future of AI in Events
+    starts_at: "2026-10-15T11:00:00+03:00"
+    ends_at: "2026-10-15T11:45:00+03:00"
+    location_id: main-stage
+    speakers: [mohamed-adel]
+    description: Session عن استخدام الـAI والـrobots في تجربة الزوار.
+  - id: robot-workshop
+    title: Build an Interactive Robot
+    starts_at: "2026-10-15T14:00:00+03:00"
+    ends_at: "2026-10-15T15:00:00+03:00"
+    location_id: hall-b
+    speakers: [sara-hassan]
+    description: Workshop عملي عن sensors وvoice interfaces.
+
+booths:
+  - id: innovatronics
+    name: Innovatronics Booth
+    location_id: expo-a12
+    description: بوث فيه live robot demos وتجارب تفاعلية.
+
+documents:
+  - id: visitor-guide
+    title: Visitor Guide
+    source_type: markdown
+    source_ref: fixture://visitor-guide
+    text: |
+      لو دي أول زيارة ليك، ابدأ من الـMain Stage عشان تشوف الـopening وبعدها تقدر تزور منطقة الـExpo.
+      الـrobot demos موجودة في Innovatronics Booth في Expo A12.
+      الورش العملية بتتعمل في Hall B.
