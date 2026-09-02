@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -24,6 +25,7 @@ from .state import ConversationState, ConversationStateMachine
 from .turn_events import TurnEvent, TurnEventType
 
 TurnEventCallback = Callable[[TurnEvent], Awaitable[None] | None]
+AudioChunkObserver = Callable[[bytes], Awaitable[None] | None]
 
 
 class RealtimeTurnRuntime:
@@ -35,6 +37,7 @@ class RealtimeTurnRuntime:
         machine: ConversationStateMachine | None = None,
         interruption: InterruptionController | None = None,
         on_event: TurnEventCallback | None = None,
+        on_audio_chunk: AudioChunkObserver | None = None,
     ) -> None:
         self.config = config
         self.machine = machine or ConversationStateMachine()
@@ -51,6 +54,8 @@ class RealtimeTurnRuntime:
         )
         self.events: list[TurnEvent] = []
         self._on_event_callback = on_event
+        self._on_audio_chunk_callback = on_audio_chunk
+        self.audio_observer_error: BaseException | None = None
         self._runner: WorkerRunner | None = None
         self._ready_event: asyncio.Event | None = None
         self._runner_task: asyncio.Task[None] | None = None
@@ -184,6 +189,16 @@ class RealtimeTurnRuntime:
 
     async def _feed_audio(self) -> None:
         async for chunk in self.stream.chunks():
+            if self._on_audio_chunk_callback is not None:
+                try:
+                    result = self._on_audio_chunk_callback(chunk)
+                    if inspect.isawaitable(result):
+                        await result
+                except asyncio.CancelledError:
+                    raise
+                except BaseException as exc:
+                    self.audio_observer_error = exc
+                    raise
             frame = InputAudioRawFrame(
                 audio=chunk,
                 sample_rate=self.config.audio.target_sample_rate_hz,

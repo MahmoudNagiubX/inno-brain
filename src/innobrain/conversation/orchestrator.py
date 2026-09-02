@@ -124,6 +124,14 @@ class GroundedOrchestrator:
     async def respond(self, user_text: str, **kwargs: object) -> BrainResult:
         return await self.answer(user_text, **kwargs)  # type: ignore[arg-type]
 
+    def commit_delivered(
+        self,
+        user_text: str,
+        result: BrainResult,
+        entities: Sequence[str] = (),
+    ) -> None:
+        self.memory.add_turn(user_text, result.text, entities)
+
     async def _commit_after_delivery(
         self,
         user_text: str,
