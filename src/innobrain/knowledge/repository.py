@@ -171,13 +171,30 @@ class EventRepository:
         parameters.append(limit)
         return list(self.conn.execute(query, tuple(parameters)))
 
-    def chunks_by_ids(self, chunk_ids: Sequence[int]) -> list[sqlite3.Row]:
+    def chunks_by_ids(
+        self,
+        chunk_ids: Sequence[int],
+        reference_time: datetime | str | None = None,
+    ) -> list[sqlite3.Row]:
         if not chunk_ids:
             return []
         placeholders = ",".join("?" for _ in chunk_ids)
+        query = f"SELECT * FROM chunks WHERE id IN ({placeholders})"
+        parameters: list[object] = list(chunk_ids)
+        if reference_time is not None:
+            reference_value = (
+                reference_time.isoformat()
+                if isinstance(reference_time, datetime)
+                else reference_time
+            )
+            query += (
+                " AND (valid_from IS NULL OR valid_from <= ?)"
+                " AND (valid_until IS NULL OR valid_until > ?)"
+            )
+            parameters.extend([reference_value, reference_value])
         rows = self.conn.execute(
-            f"SELECT * FROM chunks WHERE id IN ({placeholders})",
-            tuple(chunk_ids),
+            query,
+            tuple(parameters),
         ).fetchall()
         by_id = {row["id"]: row for row in rows}
         return [by_id[chunk_id] for chunk_id in chunk_ids if chunk_id in by_id]

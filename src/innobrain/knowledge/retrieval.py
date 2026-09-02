@@ -1,6 +1,7 @@
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from .models import Evidence, EvidencePack, EvidenceSource
 from .normalize import normalize_arabic_retrieval
@@ -44,6 +45,7 @@ class HybridRetriever:
         dense_top_k: int = 12,
         final_top_k: int = 5,
         rrf_k: int = 60,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.event_id = event_id
@@ -53,13 +55,21 @@ class HybridRetriever:
         self.dense_top_k = dense_top_k
         self.final_top_k = final_top_k
         self.rrf_k = rrf_k
+        self.clock = clock or (lambda: datetime.now(UTC))
 
-    async def retrieve(self, query: str) -> EvidencePack:
+    async def retrieve(
+        self,
+        query: str,
+        *,
+        reference_time: datetime | None = None,
+    ) -> EvidencePack:
+        effective_time = reference_time or self.clock()
         normalized_query = normalize_arabic_retrieval(query)
         lexical_rows = self.repository.lexical_search(
             self.event_id,
             normalized_query,
             self.lexical_top_k,
+            reference_time=effective_time,
         )
         lexical = [RankedChunk(int(row["id"])) for row in lexical_rows]
         dense: list[RankedChunk] = []
@@ -77,10 +87,16 @@ class HybridRetriever:
             lexical,
             dense,
             k=self.rrf_k,
-            limit=self.final_top_k,
+            limit=self.lexical_top_k + self.dense_top_k,
         )
         fused_ids = [int(item.chunk_id) for item in fused]
-        rows = {row["id"]: row for row in self.repository.chunks_by_ids(fused_ids)}
+        rows = {
+            row["id"]: row
+            for row in self.repository.chunks_by_ids(
+                fused_ids,
+                reference_time=effective_time,
+            )
+        }
         evidence: list[Evidence] = []
         lexical_ids = {item.chunk_id for item in lexical}
         dense_ids = {item.chunk_id for item in dense}
@@ -105,4 +121,6 @@ class HybridRetriever:
                     metadata={str(key): str(value) for key, value in metadata.items()},
                 )
             )
+            if len(evidence) >= self.final_top_k:
+                break
         return EvidencePack(query=query, evidence=tuple(evidence))
