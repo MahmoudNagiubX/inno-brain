@@ -1,3 +1,9 @@
 from .logging import configure_logging
+from .runtime_events import LoggingRuntimeEventSink, RuntimeEventSink, RuntimeFault
 
-__all__ = ["configure_logging"]
+__all__ = [
+    "LoggingRuntimeEventSink",
+    "RuntimeEventSink",
+    "RuntimeFault",
+    "configure_logging",
+]

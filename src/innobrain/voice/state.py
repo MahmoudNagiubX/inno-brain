@@ -25,17 +25,19 @@ class InvalidStateTransition(RuntimeError):
 
 _ALLOWED: dict[ConversationState, set[ConversationState]] = {
     ConversationState.IDLE: {ConversationState.LISTENING},
-    ConversationState.LISTENING: {ConversationState.THINKING},
+    ConversationState.LISTENING: {ConversationState.IDLE, ConversationState.THINKING},
     ConversationState.THINKING: {
+        ConversationState.IDLE,
         ConversationState.SPEAKING,
         ConversationState.LISTENING,
         ConversationState.INTERRUPTED,
     },
     ConversationState.SPEAKING: {
+        ConversationState.IDLE,
         ConversationState.LISTENING,
         ConversationState.INTERRUPTED,
     },
-    ConversationState.INTERRUPTED: {ConversationState.LISTENING},
+    ConversationState.INTERRUPTED: {ConversationState.IDLE, ConversationState.LISTENING},
 }
 
 
