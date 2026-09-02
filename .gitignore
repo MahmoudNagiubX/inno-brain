@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.venv-event-builder/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -17,6 +18,7 @@ venv/
 
 # Models / large runtime artifacts
 models/
+.builder-cache/
 *.gguf
 *.onnx
 *.safetensors
@@ -24,6 +26,8 @@ models/
 
 # Event runtime data
 events/current/
+runtime_data/
+*.innoevent
 *.db-wal
 *.db-shm
 
