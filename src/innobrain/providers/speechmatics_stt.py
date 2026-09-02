@@ -14,6 +14,7 @@ from speechmatics.voice import (
 
 from .contracts import STTProvider, TranscriptEvent
 from .errors import MissingProviderCredential, ProviderTimeout
+from .transcript_buffer import TurnTranscriptBuffer
 
 EVENT_GLOSSARY = (
     "InnoBrain",
@@ -46,6 +47,14 @@ def _message_text(message: object) -> str:
     return ""
 
 
+def _message_turn_id(message: object) -> int | None:
+    if isinstance(message, Mapping):
+        value = message.get("turn_id")
+        return value if isinstance(value, int) else None
+    value = getattr(message, "turn_id", None)
+    return value if isinstance(value, int) else None
+
+
 class SpeechmaticsSTTProvider(STTProvider):
     name = "speechmatics"
 
@@ -76,15 +85,27 @@ class SpeechmaticsSTTProvider(STTProvider):
             factory = client_factory or VoiceAgentClient
             self.client = factory(api_key=self._api_key, config=self.config)
         self.final_timeout_seconds = final_timeout_seconds
-        self._partial: TranscriptEvent | None = None
-        self._final_queue: asyncio.Queue[TranscriptEvent] = asyncio.Queue()
+        self._buffer: TurnTranscriptBuffer | None = None
+        self._active_turn_id: int | None = None
+
+    @property
+    def active_turn_id(self) -> int | None:
+        return self._active_turn_id
 
     async def start(self) -> None:
+        self._buffer = TurnTranscriptBuffer(asyncio.get_running_loop())
         self._register(AgentServerMessageType.ADD_PARTIAL_SEGMENT, self._on_partial)
         self._register(AgentServerMessageType.ADD_SEGMENT, self._on_final)
+        self._register(AgentServerMessageType.END_OF_TURN, self._on_end_of_turn)
         result = self.client.connect()
         if inspect.isawaitable(result):
             await result
+
+    async def begin_turn(self, turn_id: int) -> None:
+        if self._buffer is None:
+            raise RuntimeError("Speechmatics provider has not started")
+        self._active_turn_id = turn_id
+        self._buffer.begin_turn(turn_id)
 
     async def stream_audio(self, pcm: bytes) -> None:
         result = self.client.send_audio(pcm)
@@ -92,9 +113,15 @@ class SpeechmaticsSTTProvider(STTProvider):
             await result
 
     async def partial_text(self) -> TranscriptEvent | None:
-        return self._partial
+        if self._buffer is None or self._active_turn_id is None:
+            return None
+        await asyncio.sleep(0)
+        return self._buffer.partial_text(self._active_turn_id)
 
-    async def final_text(self) -> TranscriptEvent:
+    async def final_text(self, turn_id: int | None = None) -> TranscriptEvent:
+        selected_turn_id = self._active_turn_id if turn_id is None else turn_id
+        if self._buffer is None or selected_turn_id is None:
+            raise RuntimeError("Speechmatics transcript turn has not started")
         try:
             result = self.client.finalize(end_of_turn=True)
         except TypeError:
@@ -102,11 +129,21 @@ class SpeechmaticsSTTProvider(STTProvider):
         if inspect.isawaitable(result):
             await result
         try:
-            return await asyncio.wait_for(self._final_queue.get(), self.final_timeout_seconds)
-        except TimeoutError as exc:
+            return await self._buffer.finalize(
+                selected_turn_id,
+                timeout_seconds=self.final_timeout_seconds,
+            )
+        except ProviderTimeout as exc:
             raise ProviderTimeout("Speechmatics did not return a final segment") from exc
+        finally:
+            self._buffer.close_turn(selected_turn_id)
+            if self._active_turn_id == selected_turn_id:
+                self._active_turn_id = None
 
     async def stop(self) -> None:
+        if self._buffer is not None and self._active_turn_id is not None:
+            self._buffer.close_turn(self._active_turn_id)
+        self._active_turn_id = None
         disconnect = getattr(self.client, "disconnect", None) or getattr(self.client, "close", None)
         if disconnect is not None:
             result = disconnect()
@@ -121,12 +158,17 @@ class SpeechmaticsSTTProvider(STTProvider):
 
     def _on_partial(self, message: object) -> None:
         text = _message_text(message)
-        if text:
-            self._partial = TranscriptEvent(text=text, is_final=False, language="ar-EG")
+        turn_id = _message_turn_id(message) or self._active_turn_id
+        if text and turn_id is not None and self._buffer is not None:
+            self._buffer.push_from_callback(turn_id=turn_id, text=text, is_final=False)
 
     def _on_final(self, message: object) -> None:
         text = _message_text(message)
-        if text:
-            self._final_queue.put_nowait(
-                TranscriptEvent(text=text, is_final=True, language="ar-EG")
-            )
+        turn_id = _message_turn_id(message) or self._active_turn_id
+        if text and turn_id is not None and self._buffer is not None:
+            self._buffer.push_from_callback(turn_id=turn_id, text=text, is_final=True)
+
+    def _on_end_of_turn(self, message: object) -> None:
+        turn_id = _message_turn_id(message) or self._active_turn_id
+        if turn_id is not None and self._buffer is not None:
+            self._buffer.complete_from_callback(turn_id=turn_id)
