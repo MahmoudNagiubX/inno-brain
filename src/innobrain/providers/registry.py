@@ -1,6 +1,17 @@
 import os
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import cast
+
+from innobrain.config.models import ProjectConfigs
+
+from .azure_tts import AzureTTSProvider
+from .contracts import LLMProvider, STTProvider, TTSProvider
+from .deepgram_stt import DeepgramSTTProvider
+from .errors import MissingProviderCredential
+from .groq_llm import GroqLLMProvider
+from .speechmatics_stt import SpeechmaticsSTTProvider
+from .stt_failover import FailoverSTTProvider
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,3 +55,85 @@ class ProviderRegistry:
             if availability.name in {"speechmatics", "deepgram"} and availability.configured:
                 return availability.name
         return None
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderBundle:
+    stt: FailoverSTTProvider = field(repr=False)
+    llm: LLMProvider = field(repr=False)
+    tts: TTSProvider = field(repr=False)
+
+
+ProviderConstructor = Callable[..., object]
+
+
+def _required_secret(environment: Mapping[str, str], name: str) -> str:
+    value = environment.get(name)
+    if not value:
+        raise MissingProviderCredential(f"missing credential environment variable: {name}")
+    return value
+
+
+def build_provider_bundle(
+    config: ProjectConfigs,
+    *,
+    environment: Mapping[str, str] | None = None,
+    constructors: Mapping[str, ProviderConstructor] | None = None,
+) -> ProviderBundle:
+    """Construct configured providers without starting them or making network calls."""
+
+    env = os.environ if environment is None else environment
+    factories: dict[str, ProviderConstructor] = {
+        "speechmatics": SpeechmaticsSTTProvider,
+        "deepgram": DeepgramSTTProvider,
+        "groq": GroqLLMProvider,
+        "azure": AzureTTSProvider,
+    }
+    if constructors is not None:
+        factories.update(constructors)
+
+    stt_order = [config.providers.stt.primary, *config.providers.stt.fallback]
+    unique_stt_order = list(dict.fromkeys(stt_order))
+    if len(unique_stt_order) < 2:
+        raise ValueError("STT configuration requires a distinct primary and fallback")
+    stt_instances: list[STTProvider] = []
+    for name in unique_stt_order[:2]:
+        if name == "speechmatics":
+            settings = config.providers.stt.speechmatics
+            kwargs = {"api_key": _required_secret(env, settings.api_key_env)}
+        else:
+            settings = config.providers.stt.deepgram
+            kwargs = {"api_key": _required_secret(env, settings.api_key_env)}
+        stt_instances.append(cast(STTProvider, factories[name](**kwargs)))
+
+    groq = config.providers.llm.groq
+    llm = cast(
+        LLMProvider,
+        factories[config.providers.llm.primary](
+            api_key=_required_secret(env, groq.api_key_env),
+            model=groq.model,
+            fallback_model=groq.fallback_model,
+        ),
+    )
+    azure = config.providers.tts.azure
+    tts = cast(
+        TTSProvider,
+        factories[config.providers.tts.primary](
+            api_key=_required_secret(env, azure.key_env),
+            region=_required_secret(env, azure.region_env),
+            sample_rate_hz=azure.sample_rate_hz,
+        ),
+    )
+    return ProviderBundle(
+        stt=FailoverSTTProvider(stt_instances[0], stt_instances[1]),
+        llm=llm,
+        tts=tts,
+    )
+
+
+__all__ = [
+    "ProviderAvailability",
+    "ProviderBundle",
+    "ProviderRegistry",
+    "build_provider_bundle",
+]
