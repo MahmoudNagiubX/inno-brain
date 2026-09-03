@@ -2,7 +2,7 @@
 
 **Final state:** `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`
 **Branch:** `phase/5c0-wake-attention`
-**Code checkpoint:** `7938795`
+**Code checkpoint:** `b871e48`
 
 ## Decision
 
@@ -45,13 +45,21 @@ a future-safe local hook with an unknown default and no hardware calls.
   state and never synthesize detections.
 - Application activation/rollback, lifecycle cleanup, and attention reset
   clear wake/session context without a second stream.
+- Corpus collection is safe to resume from the laptop: direct and module
+  recorder execution work, BOM manifests are accepted, the repair tool is
+  report-first and metadata-conservative, manifest writes are atomic, and
+  recorder preflight blocks stale or structurally inconsistent corpora before
+  microphone capture. New WAVs are never deleted because unrelated historical
+  entries are broken.
 
 ## Verification record
 
 | Gate | Result |
 |---|---|
-| Full pytest | `349 passed / 2 expected skips` |
+| Full pytest | `369 passed / 2 expected skips` |
 | Focused wake/attention/config/application tests | `149 passed` |
+| Focused Heyino corpus workflow | `20 passed` |
+| Wake-unit tests | `102 passed` |
 | Ruff | clean |
 | pip check | no broken requirements |
 | git diff check | clean |

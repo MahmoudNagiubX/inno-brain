@@ -1,7 +1,7 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.18
+> **Version:** 1.19
 > **Date:** 2026-09-03
 > **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`; real provider/API voice not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
@@ -4471,3 +4471,29 @@ Pepper realtime AI:
   real API voice execution.
 
 **End of Master Plan v1.18**
+
+---
+
+## v1.19 - 2026-09-03
+
+- Hardened the Gate 5C.0 Heyino corpus-recording workflow for safe laptop data
+  collection: both direct-script and `python -m` execution are supported, and
+  UTF-8/UTF-8-BOM manifests load reliably.
+- Added atomic manifest writes and a report-first validation/repair command that
+  detects missing audio, filename/clip-ID/speaker inconsistencies, orphan WAVs,
+  unsafe paths, duplicates, and split leakage without inventing metadata. Only
+  unique clip-ID path reconciliation is repairable; ambiguous cases stop with
+  audio untouched.
+- Added recorder preflight so an unhealthy historical corpus or unindexed WAVs
+  fail before microphone capture. New WAV persistence and manifest updates are
+  atomic, and a manifest write failure never deletes the new audio or corrupts
+  the prior manifest.
+- Preserved the Gate 5C.0 dataset schema, hard-negative protocol, strict
+  train/calibration/held-out speaker isolation, and all deferred real provider,
+  microphone, Pi/S330, Robot, Screen, ROS, and API validation debt.
+- Verified offline on the Windows laptop: `369 passed, 2 skipped`; focused
+  Heyino corpus workflow `20 passed`; wake-unit suite `102 passed`; Ruff clean;
+  pip check clean; and `git diff --check` clean. No live voice execution was
+  authorized or performed.
+
+**End of Master Plan v1.19**

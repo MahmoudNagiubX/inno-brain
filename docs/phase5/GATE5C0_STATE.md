@@ -1,7 +1,7 @@
 # Gate 5C.0 State
 
 **Branch:** `phase/5c0-wake-attention`
-**Implementation checkpoint:** `7938795`
+**Implementation checkpoint:** `b871e48`
 **State:** `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`
 
 ## Scope completed
@@ -23,11 +23,15 @@
   never forwarded as user content.
 - Added safe project-root `.env` loading, offline `check` and `wake-check`,
   and the authorized but unexecuted `run` entrypoint.
+- Hardened corpus collection with direct/module execution, UTF-8-BOM manifest
+  loading, atomic manifest/WAV persistence, report-first validation/repair, and
+  pre-capture blocking for stale, inconsistent, or unindexed historical data.
 
 ## Evidence
 
-- Full offline pytest: **349 passed, 2 expected skips**.
+- Full offline pytest: **369 passed, 2 expected skips**.
 - Focused wake/attention/config/application suite: **149 passed**.
+- Focused Heyino corpus workflow: **20 passed**; wake-unit suite: **102 passed**.
 - Ruff: **clean**.
 - `pip check`: **No broken requirements found**.
 - `git diff --check`: **clean**.
