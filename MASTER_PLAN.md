@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.15
+> **Version:** 1.16
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B `GATE_5B_RE_REVIEW_BLOCKED` with three partially closed P1 findings; Gate 5C real voice not authorized
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 final blocker remediation in progress; Gate 5C not authorized
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -3528,7 +3528,29 @@ Locked remediation architecture:
 13. A production-intent CLI provides an offline `python -m innobrain check`;
     Gate 5B performs no provider network calls or human microphone tests.
 14. Gate 5C remains blocked until a separate GPT-5.6 Sol re-review reports zero
-    P0/P1 findings.
+   P0/P1 findings.
+
+Gate 5B.1 final blocker decisions:
+
+15. `InnoBrainApplication` owns `RuntimeContextSwitcher` and
+    `ActivationManager`.
+16. Event activation is allowed only while the voice runtime is quiescent:
+    state `IDLE` or `LISTENING`, with no active turn, unfinished turn task, or
+    unfinished response task.
+17. `RuntimeContextSwitcher` reuses the same configured embedding provider and
+    retrieval parameters as the initial context.
+18. Shutdown closes the switcher's current context and never a stale initial
+    reference.
+19. Speechmatics SDK callback IDs are provider-session IDs, not InnoBrain
+    application turn IDs.
+20. Segment callbacks without provider turn IDs belong to the currently active
+    InnoBrain turn until the matching provider `END_OF_TURN`.
+21. Provider turn ID `0` is valid and is never treated as missing or false.
+22. Cleanup failures are observable but cannot prevent safe state recovery.
+23. Fault and interruption cleanup restore a safe state even when playback or
+    provider cancellation raises.
+24. Gate 5C remains blocked until final targeted re-review confirms P0=0 and
+    P1=0.
 
 ### Gate 5C — Real Provider + Real Voice Integration
 
@@ -4302,4 +4324,17 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.15**
+## v1.16 - 2026-09-03
+
+- Locked the Gate 5B.1 remediation decisions for live event-context ownership,
+  Speechmatics provider-session to application-turn mapping, and cleanup-safe
+  conversation state recovery.
+- Kept Gate 5C not authorized; this implementation pass performs no real
+  provider calls, microphone tests, Robot, Screen, or ROS work.
+- Set the implementation target to
+  `GATE_5B1_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`, pending a separate final
+  targeted re-review.
+
+---
+
+**End of Master Plan v1.16**
