@@ -1,6 +1,6 @@
 # Gate 5B Remediation State
 
-**Status:** `IN_PROGRESS`
+**Status:** `GATE_5B_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`
 
 **Source branch:** `review/pre-phase5-sol-audit`
 
@@ -15,6 +15,19 @@
 **Audited P1 findings:** `7`
 
 **Gate 5C real voice:** `BLOCKED_PENDING_SOL_RE_REVIEW`
+
+**Implementation HEAD before final documentation:**
+`920899c123098d704024f63dfe1e225fd4ae623d`
+
+**Fresh full regression:** `192 passed / 2 expected skips`
+
+**Fresh event security regression:** `2 passed`
+
+**Ruff / pip / diff checks:** `PASS`
+
+The implementation provides regression evidence for the original P0 and all
+seven P1 findings. Their closure remains a decision for the separate Sol
+re-review; this state does not claim `READY_FOR_PHASE5_VOICE`.
 
 No real provider calls, human microphone tests, Robot, Screen, or ROS work are
 authorized during Gate 5B.

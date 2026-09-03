@@ -10,7 +10,7 @@ Current development: Windows laptop + laptop microphone/output.
 
 Target deployment: Raspberry Pi 5 8 GB + Anker PowerConf S330; production hardware validation remains pending.
 
-Current status: Gate 5B remediation implementation is in progress. Gate 5C real voice remains blocked pending independent Sol re-review. Prior provider, interactive voice, and Pi/S330 acceptance remains deferred.
+Current status: Gate 5B is `GATE_5B_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`. Gate 5C real voice remains blocked pending independent Sol re-review. Prior provider, interactive voice, and Pi/S330 acceptance remains deferred.
 
 Implemented:
 - realtime PCM pipeline

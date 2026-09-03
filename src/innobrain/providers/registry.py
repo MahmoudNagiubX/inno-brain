@@ -96,31 +96,38 @@ def build_provider_bundle(
     unique_stt_order = list(dict.fromkeys(stt_order))
     if len(unique_stt_order) < 2:
         raise ValueError("STT configuration requires a distinct primary and fallback")
-    stt_instances: list[STTProvider] = []
+    stt_secrets: dict[str, str] = {}
     for name in unique_stt_order[:2]:
         if name == "speechmatics":
             settings = config.providers.stt.speechmatics
-            kwargs = {"api_key": _required_secret(env, settings.api_key_env)}
         else:
             settings = config.providers.stt.deepgram
-            kwargs = {"api_key": _required_secret(env, settings.api_key_env)}
-        stt_instances.append(cast(STTProvider, factories[name](**kwargs)))
+        stt_secrets[name] = _required_secret(env, settings.api_key_env)
 
     groq = config.providers.llm.groq
+    groq_key = _required_secret(env, groq.api_key_env)
+    azure = config.providers.tts.azure
+    azure_key = _required_secret(env, azure.key_env)
+    azure_region = _required_secret(env, azure.region_env)
+
+    stt_instances: list[STTProvider] = []
+    for name in unique_stt_order[:2]:
+        kwargs = {"api_key": stt_secrets[name]}
+        stt_instances.append(cast(STTProvider, factories[name](**kwargs)))
+
     llm = cast(
         LLMProvider,
         factories[config.providers.llm.primary](
-            api_key=_required_secret(env, groq.api_key_env),
+            api_key=groq_key,
             model=groq.model,
             fallback_model=groq.fallback_model,
         ),
     )
-    azure = config.providers.tts.azure
     tts = cast(
         TTSProvider,
         factories[config.providers.tts.primary](
-            api_key=_required_secret(env, azure.key_env),
-            region=_required_secret(env, azure.region_env),
+            api_key=azure_key,
+            region=azure_region,
             sample_rate_hz=azure.sample_rate_hz,
         ),
     )

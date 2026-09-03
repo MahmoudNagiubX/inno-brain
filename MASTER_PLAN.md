@@ -3,7 +3,7 @@
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
 > **Version:** 1.15
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B remediation in progress; Gate 5C real voice blocked pending separate Sol re-review
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B `GATE_5B_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`; Gate 5C real voice blocked pending separate Sol re-review
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -4287,6 +4287,18 @@ Pepper realtime AI:
   re-review reports zero P0/P1 findings.
 - Confirmed that Gate 5B performs no real provider calls, microphone tests,
   Robot, Screen, or ROS work.
+- Implemented the package TOCTOU remediation and regression coverage for all
+  seven audited P1 blockers on `phase/5b-remediation` from audit HEAD
+  `f5d97ec39f43da2f02ee4d54b90b387991ef8553`.
+- Added one production-intent application graph, offline readiness check,
+  first-live structured telemetry, validity-aware hybrid retrieval, and an
+  exact graph integration test with only network/hardware boundaries faked.
+- Recorded implementation HEAD `920899c123098d704024f63dfe1e225fd4ae623d`.
+- Fresh verification passed with `192 passed / 2 expected skips`, Ruff, pip,
+  diff checks, and `2 passed` in the focused event-security directory.
+- Set Gate 5B state to `GATE_5B_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`.
+  Finding closure remains reserved for the separate Sol re-review; Gate 5C is
+  not authorized and `READY_FOR_PHASE5_VOICE` is not set.
 
 ---
 
