@@ -40,3 +40,22 @@ async def test_stop_sentinel_terminates_async_iterator() -> None:
         chunks.append(chunk)
 
     assert chunks == []
+
+
+def test_sounddevice_callback_only_enqueues_raw_pcm_without_gate() -> None:
+    class FakeLoop:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call_soon_threadsafe(self, callback, chunk) -> None:
+            self.calls.append((callback, chunk))
+
+    stream = SoundDevicePCMStream()
+    loop = FakeLoop()
+    stream._loop = loop
+    stream._accepting = True
+
+    stream._callback(memoryview(b"\x01\x00"), 1, None, None)
+
+    assert len(loop.calls) == 1
+    assert loop.calls[0][1] == b"\x01\x00"

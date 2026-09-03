@@ -47,3 +47,29 @@ events:
   max_file_count: 2000
   max_uncompressed_bytes: 1073741824
   max_single_file_bytes: 268435456
+
+wake_word:
+  enabled: true
+  phrase: "Heyino/H-E-Y-I-N-N-O"
+  canonical_label: heyino
+  engine_type: openwakeword
+  model_path: null
+  threshold: 0.5
+  cooldown_seconds: 1.5
+  preroll_ms: 1500
+  candidate_engines:
+    openwakeword:
+      model_path: "models/wake/heyino_openwakeword_v0.onnx"
+      frame_length_samples: 1280
+      threshold: 0.5
+    porcupine:
+      model_path: "models/wake/heyino_porcupine.ppn"
+      frame_length_samples: 512
+      threshold: 0.5
+
+attention:
+  followup_window_ms: 4500.0
+  followup_window_cap_ms: 8000.0
+  max_session_duration_seconds: 120.0
+  rejected_background_limit: 1
+  wake_cooldown_seconds: 1.5

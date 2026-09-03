@@ -58,6 +58,45 @@ class EventPackageRuntimeConfig(StrictModel):
     max_single_file_bytes: int = 268_435_456
 
 
+class WakeCandidateMetadata(StrictModel):
+    model_path: str | None = None
+    frame_length_samples: int = Field(default=1280, ge=1)
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class WakeWordRuntimeConfig(StrictModel):
+    enabled: bool = True
+    phrase: Literal["Heyino/H-E-Y-I-N-N-O"] = "Heyino/H-E-Y-I-N-N-O"
+    canonical_label: Literal["heyino"] = "heyino"
+    engine_type: Literal["openwakeword", "porcupine", "fake"] = "openwakeword"
+    model_path: str | None = None
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    cooldown_seconds: float = Field(default=1.5, ge=0.0, le=30.0)
+    preroll_ms: int = Field(default=1500, ge=100, le=10000)
+    candidate_engines: dict[str, WakeCandidateMetadata] = Field(
+        default_factory=lambda: {
+            "openwakeword": WakeCandidateMetadata(
+                model_path="models/wake/heyino_openwakeword_v0.onnx",
+                frame_length_samples=1280,
+                threshold=0.5,
+            ),
+            "porcupine": WakeCandidateMetadata(
+                model_path="models/wake/heyino_porcupine.ppn",
+                frame_length_samples=512,
+                threshold=0.5,
+            ),
+        }
+    )
+
+
+class AttentionRuntimeConfig(StrictModel):
+    followup_window_ms: float = Field(default=4500.0, ge=0.0)
+    followup_window_cap_ms: float = Field(default=8000.0, ge=0.0)
+    max_session_duration_seconds: float = Field(default=120.0, gt=0.0)
+    rejected_background_limit: int = Field(default=1, ge=1)
+    wake_cooldown_seconds: float = Field(default=1.5, ge=0.0)
+
+
 class RuntimeConfig(StrictModel):
     app_name: str
     environment: Literal["development", "test", "production"]
@@ -68,6 +107,8 @@ class RuntimeConfig(StrictModel):
     realtime: RealtimeRuntimeConfig
     conversation: ConversationRuntimeConfig = ConversationRuntimeConfig()
     events: EventPackageRuntimeConfig = EventPackageRuntimeConfig()
+    wake_word: WakeWordRuntimeConfig = WakeWordRuntimeConfig()
+    attention: AttentionRuntimeConfig = AttentionRuntimeConfig()
 
 
 class SpeechmaticsProviderConfig(StrictModel):

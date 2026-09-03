@@ -1,5 +1,7 @@
 import asyncio
 import inspect
+from collections.abc import Callable
+from typing import Any
 
 from innobrain.config import RuntimeConfig
 from innobrain.providers import STTProvider, TTSProvider
@@ -35,6 +37,9 @@ class VoiceBrainRuntime:
         machine: ConversationStateMachine | None = None,
         turn_runtime: RealtimeTurnRuntime | None = None,
         event_sink: RuntimeEventSink | None = None,
+        audio_gate: Callable[[bytes], bytes | None] | None = None,
+        attention: Any | None = None,
+        wake_router: Any | None = None,
     ) -> None:
         self.config = config
         self.machine = machine or ConversationStateMachine()
@@ -42,12 +47,16 @@ class VoiceBrainRuntime:
         self.orchestrator = orchestrator
         self.tts = tts
         self.playback = playback
+        self.attention = attention
+        self.wake_router = wake_router
+        self.audio_gate = audio_gate
         self.memory: SessionMemory = orchestrator.memory
         self.last_result: BrainResult | None = None
         self._response_task: asyncio.Task[BrainResult | None] | None = None
         self._turn_task: asyncio.Task[BrainResult | None] | None = None
         self._next_turn_id = 1
         self._active_turn_id: int | None = None
+        self._attention_turn_managed = False
         self._started = False
         self._closed = False
         self._event_sink = event_sink or LoggingRuntimeEventSink()
@@ -63,6 +72,7 @@ class VoiceBrainRuntime:
             interruption=self.interruption,
             on_audio_chunk=self._on_audio_chunk,
             on_event=self._on_turn_event,
+            audio_gate=audio_gate,
         )
 
     @property
@@ -71,8 +81,13 @@ class VoiceBrainRuntime:
 
     @property
     def is_quiescent(self) -> bool:
+        attention_busy = (
+            self.attention is not None
+            and getattr(self.attention, "is_utterance_in_progress", False)
+        )
         return (
-            self.machine.state in {ConversationState.IDLE, ConversationState.LISTENING}
+            not attention_busy
+            and self.machine.state in {ConversationState.IDLE, ConversationState.LISTENING}
             and self._active_turn_id is None
             and (self._response_task is None or self._response_task.done())
             and (self._turn_task is None or self._turn_task.done())
@@ -106,6 +121,8 @@ class VoiceBrainRuntime:
                 self.machine.transition(ConversationState.IDLE, "runtime_stopped")
 
     async def cancel_response(self) -> None:
+        if self.wake_router is not None:
+            self.wake_router.set_playback_active(False)
         task = self._response_task
         cancellations = []
         if task is not None and task is not asyncio.current_task() and not task.done():
@@ -141,7 +158,28 @@ class VoiceBrainRuntime:
         except (asyncio.CancelledError, TimeoutError):
             pass
 
-    async def handle_user_turn_started(self) -> int:
+    def _recover_attention_utterance(self, text: str = "") -> Any:
+        if self.attention is None:
+            return None
+        decision = None
+        if hasattr(self.attention, "on_utterance_end"):
+            try:
+                decision = self.attention.on_utterance_end(text)
+            except Exception:
+                pass
+        if getattr(self.attention, "is_utterance_in_progress", False):
+            if hasattr(self.attention, "_is_utterance_in_progress"):
+                self.attention._is_utterance_in_progress = False
+        return decision
+
+    async def handle_user_turn_started(self, *, manage_attention: bool = False) -> int:
+        self._attention_turn_managed = manage_attention and self.attention is not None
+        if self._attention_turn_managed and not getattr(
+            self.attention, "is_utterance_in_progress", False
+        ):
+            if not self.attention.on_utterance_start():
+                self._attention_turn_managed = False
+                return -1
         if self.machine.state is ConversationState.IDLE:
             self.machine.transition(ConversationState.LISTENING, "runtime_started")
         turn_id = self._next_turn_id
@@ -158,19 +196,32 @@ class VoiceBrainRuntime:
     async def handle_user_turn_stopped(self) -> BrainResult | None:
         turn_id = self._active_turn_id
         if turn_id is None:
+            if self._attention_turn_managed:
+                self._recover_attention_utterance("")
+            self._attention_turn_managed = False
             return None
         self._active_turn_id = None
+        attention_turn_managed = self._attention_turn_managed
+        self._attention_turn_managed = False
         if self.machine.state is not ConversationState.LISTENING:
+            if attention_turn_managed:
+                self._recover_attention_utterance("")
             return None
         self._emit("speech_stop", turn_id=turn_id, timing_marker="speech_stop")
         try:
             transcript = await self.stt.final_text(turn_id)
         except asyncio.CancelledError:
+            if attention_turn_managed:
+                self._recover_attention_utterance("")
             raise
         except Exception as exc:
+            if attention_turn_managed:
+                self._recover_attention_utterance("")
             await self._handle_fault("stt_final", exc, turn_id)
             return None
         if transcript.turn_id is not None and transcript.turn_id != turn_id:
+            if attention_turn_managed:
+                self._recover_attention_utterance("")
             return None
         self._emit(
             "stt_final",
@@ -179,7 +230,17 @@ class VoiceBrainRuntime:
             timing_marker="stt_final",
         )
         if not transcript.text.strip():
+            if attention_turn_managed:
+                self._recover_attention_utterance("")
             return None
+        if attention_turn_managed and self.attention is not None:
+            decision = self.attention.on_utterance_end(transcript.text)
+            if decision is not None and not decision.is_directed:
+                self._emit(
+                    "attention_rejected",
+                    turn_id=turn_id,
+                )
+                return None
         self.machine.transition(ConversationState.THINKING, "user_turn_stopped")
         response_task = asyncio.create_task(self._respond(transcript.text, turn_id=turn_id))
         self._response_task = response_task
@@ -210,6 +271,8 @@ class VoiceBrainRuntime:
                     if not started_playback:
                         stage = "playback"
                         await self.playback.start(audio.sample_rate_hz)
+                        if self.wake_router is not None:
+                            self.wake_router.set_playback_active(True)
                         started_playback = True
                         self.machine.transition(ConversationState.SPEAKING, "first_pcm")
                         self._emit(
@@ -222,9 +285,13 @@ class VoiceBrainRuntime:
                     stage = "tts"
             if not started_playback:
                 self.machine.transition(ConversationState.LISTENING, "tts_unavailable")
+                if self.attention is not None:
+                    self.attention.on_reply_completed()
                 return result
             stage = "playback"
             await self.playback.finish()
+            if self.wake_router is not None:
+                self.wake_router.set_playback_active(False)
             self._emit(
                 "playback_stop",
                 turn_id=turn_id,
@@ -233,6 +300,8 @@ class VoiceBrainRuntime:
             self.orchestrator.commit_delivered(user_text, result)
             self.last_result = result
             self.machine.transition(ConversationState.LISTENING, "response_delivered")
+            if self.attention is not None:
+                self.attention.on_reply_completed()
             return result
         except asyncio.CancelledError:
             raise
@@ -291,6 +360,9 @@ class VoiceBrainRuntime:
                 self._record_cleanup_fault(
                     f"{stage}.playback_cleanup", cleanup_exc, turn_id
                 )
+            finally:
+                if self.wake_router is not None:
+                    self.wake_router.set_playback_active(False)
 
             cancellations = self._provider_cancellations()
             if cancellations:
@@ -317,9 +389,13 @@ class VoiceBrainRuntime:
 
     async def _on_turn_event(self, event: TurnEvent) -> None:
         if event.event_type is TurnEventType.USER_TURN_STARTED:
+            if self.attention is not None:
+                accepted = self.attention.on_utterance_start()
+                if not accepted:
+                    return
             if event.barge_in:
                 self._emit("barge_in", turn_id=self._active_turn_id, barge_in=True)
-            await self.handle_user_turn_started()
+            await self.handle_user_turn_started(manage_attention=True)
             return
         if event.event_type is TurnEventType.USER_TURN_STOPPED:
             if self._turn_task is None or self._turn_task.done():

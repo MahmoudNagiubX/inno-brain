@@ -38,6 +38,7 @@ class RealtimeTurnRuntime:
         interruption: InterruptionController | None = None,
         on_event: TurnEventCallback | None = None,
         on_audio_chunk: AudioChunkObserver | None = None,
+        audio_gate: Callable[[bytes], bytes | None] | None = None,
     ) -> None:
         self.config = config
         self.machine = machine or ConversationStateMachine()
@@ -52,6 +53,7 @@ class RealtimeTurnRuntime:
             device=config.audio.input_device,
             queue_max_chunks=config.realtime.audio_queue_max_chunks,
         )
+        self._audio_gate = audio_gate
         self.events: list[TurnEvent] = []
         self._on_event_callback = on_event
         self._on_audio_chunk_callback = on_audio_chunk
@@ -190,9 +192,17 @@ class RealtimeTurnRuntime:
 
     async def _feed_audio(self) -> None:
         async for chunk in self.stream.chunks():
+            routed = chunk
+            if self._audio_gate is not None:
+                result = self._audio_gate(chunk)
+                if inspect.isawaitable(result):
+                    result = await result
+                routed = result
+            if not routed:
+                continue
             if self._on_audio_chunk_callback is not None:
                 try:
-                    result = self._on_audio_chunk_callback(chunk)
+                    result = self._on_audio_chunk_callback(routed)
                     if inspect.isawaitable(result):
                         await result
                 except asyncio.CancelledError:
@@ -201,7 +211,7 @@ class RealtimeTurnRuntime:
                     self.audio_observer_error = exc
                     raise
             frame = InputAudioRawFrame(
-                audio=chunk,
+                audio=routed,
                 sample_rate=self.config.audio.target_sample_rate_hz,
                 num_channels=1,
             )

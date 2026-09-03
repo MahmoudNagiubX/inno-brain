@@ -1,5 +1,6 @@
-from .loader import load_all_configs, load_yaml_model
+from .loader import load_all_configs, load_env_file, load_yaml_model
 from .models import (
+    AttentionRuntimeConfig,
     AudioRuntimeConfig,
     AzureTTSProviderConfig,
     ConversationRuntimeConfig,
@@ -21,9 +22,12 @@ from .models import (
     STTProviderConfig,
     TTSProviderConfig,
     VADRuntimeConfig,
+    WakeCandidateMetadata,
+    WakeWordRuntimeConfig,
 )
 
 __all__ = [
+    "AttentionRuntimeConfig",
     "AudioRuntimeConfig",
     "AzureTTSProviderConfig",
     "ConversationRuntimeConfig",
@@ -45,6 +49,9 @@ __all__ = [
     "StrictModel",
     "TTSProviderConfig",
     "VADRuntimeConfig",
+    "WakeCandidateMetadata",
+    "WakeWordRuntimeConfig",
     "load_all_configs",
+    "load_env_file",
     "load_yaml_model",
 ]
