@@ -3,7 +3,7 @@
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
 > **Version:** 1.16
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 final blocker remediation in progress; Gate 5C not authorized
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `GATE_5B1_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`; Gate 5C not authorized
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -4334,6 +4334,22 @@ Pepper realtime AI:
 - Set the implementation target to
   `GATE_5B1_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`, pending a separate final
   targeted re-review.
+- Implemented the three final Gate 5B.1 blockers on
+  `phase/5b1-final-blockers`: production event switching ownership and
+  quiescence, Speechmatics provider-session/application-turn mapping, and
+  cleanup-safe state recovery.
+- Preserved the closed Gate 5B P0/P1 findings and made no provider, model,
+  dependency, VAD, Smart Turn, real voice, microphone, Robot, Screen, or ROS
+  changes.
+- Fresh verification passed with `203 passed / 2 expected skips`, `31 passed`
+  in the cross-fix integration suite, `2 passed` in event security, Ruff,
+  pip check, and diff checks. Offline `python -m innobrain check` made no
+  network calls and reported `not_ready` because no active event/provider
+  credentials/E5 assets were configured.
+- Recorded implementation HEAD
+  `649f3e1245ac2ab31e8423e196a99c6c83b84cf9`; final targeted Sol re-review is
+  still required before Gate 5C authorization or
+  `READY_FOR_PHASE5_VOICE`.
 
 ---
 

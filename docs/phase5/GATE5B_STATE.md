@@ -1,6 +1,6 @@
-# Gate 5B Remediation State
+# Gate 5B.1 Remediation State
 
-**Status:** `GATE_5B_RE_REVIEW_BLOCKED`
+**Status:** `GATE_5B1_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`
 
 **Source branch:** `review/pre-phase5-sol-audit`
 
@@ -8,7 +8,11 @@
 
 **Remediation branch:** `phase/5b-remediation`
 
-**Master Plan:** v1.15
+**Final blocker branch:** `phase/5b1-final-blockers`
+
+**Final blocker base HEAD:** `532777715206d4158981ed4b2f0dfb2f938b7971`
+
+**Master Plan:** v1.16
 
 **Audited P0 findings:** `1`
 
@@ -17,26 +21,26 @@
 **Gate 5C real voice:** `NOT_AUTHORIZED`
 
 **Implementation HEAD before final documentation:**
-`920899c123098d704024f63dfe1e225fd4ae623d`
+`649f3e1245ac2ab31e8423e196a99c6c83b84cf9`
 
-**Fresh full regression:** `192 passed / 2 expected skips`
+**Fresh full regression:** `203 passed / 2 expected skips`
 
 **Fresh event security regression:** `2 passed`
 
 **Ruff / pip / diff checks:** `PASS`
 
-The targeted Sol re-review closed the original archive P0 and four of the seven
-original P1 findings. Three P1 findings are only partially closed:
+The three final blockers are implemented in order and independently verified:
 
-1. The standalone event context switcher is not wired into the production
-   `InnoBrainApplication` activation path.
-2. Speechmatics turn IDs do not map correctly to application turn IDs across
-   multiple turns with the installed SDK callback shape.
-3. Playback/provider cleanup exceptions can escape fault or interruption
-   handling before state recovery, leaving the runtime active.
+1. `InnoBrainApplication` owns and wires the live event context switcher and
+   activation manager with quiescence protection.
+2. Speechmatics provider-session IDs map correctly to application turn IDs for
+   installed SDK multi-turn callbacks, including provider ID zero.
+3. Fault and interruption cleanup failures are observable without preventing
+   recovery to `LISTENING`.
 
-The required P0=0 and P1=0 condition is not met. This state does not claim
-`READY_FOR_PHASE5_VOICE`; see `docs/phase5/GATE5B_SOL_RE_REVIEW.md`.
+The implementation is awaiting the separate final targeted Sol re-review. It
+does not claim `READY_FOR_PHASE5_VOICE`; see
+`docs/phase5/GATE5B1_FINAL_BLOCKERS_REPORT.md`.
 
 No real provider calls, human microphone tests, Robot, Screen, or ROS work are
 authorized during Gate 5B.
