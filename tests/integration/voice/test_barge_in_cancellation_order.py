@@ -179,3 +179,31 @@ async def test_barge_in_prevents_pcm_write_after_playback_cancel() -> None:
     assert orchestrator.cancel_calls == 1
     assert tts.cancel_calls == 1
     assert runtime.machine.state is ConversationState.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_barge_in_playback_cancel_failure_still_recovers_to_listening() -> None:
+    calls = []
+
+    class FailingPlayback(RecordingPlayback):
+        async def cancel(self):
+            calls.append("playback")
+            raise RuntimeError("speaker cancel failed")
+
+    runtime = VoiceBrainRuntime(
+        load_all_configs(REPOSITORY_ROOT).runtime,
+        stt=NullSTT(),
+        orchestrator=CancelableOrchestrator(calls),
+        tts=SlowCancelable(calls, "tts"),
+        playback=FailingPlayback(calls),
+        stream=NullStream(),
+    )
+    runtime.machine.transition(ConversationState.LISTENING, "test")
+    runtime.machine.transition(ConversationState.THINKING, "test")
+    runtime.machine.transition(ConversationState.SPEAKING, "test")
+
+    with pytest.raises(RuntimeError, match="speaker cancel failed"):
+        await runtime.interruption.handle_user_turn_started()
+
+    assert calls == ["playback"]
+    assert runtime.machine.state is ConversationState.LISTENING

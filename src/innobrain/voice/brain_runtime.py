@@ -240,12 +240,14 @@ class VoiceBrainRuntime:
             await self._handle_fault(stage, exc, turn_id)
             return None
 
-    async def _handle_fault(
+    def _record_cleanup_fault(
         self,
         stage: str,
-        exc: Exception,
+        exc: BaseException,
         turn_id: int | None,
     ) -> None:
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise exc
         fault = RuntimeFault(
             stage=stage,
             error_type=type(exc).__name__,
@@ -254,14 +256,61 @@ class VoiceBrainRuntime:
         )
         try:
             self._event_sink.fault(fault)
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception:
             pass
-        await self.playback.cancel()
-        cancellations = self._provider_cancellations()
-        if cancellations:
-            await asyncio.gather(*cancellations)
-        if self.machine.state in {ConversationState.THINKING, ConversationState.SPEAKING}:
-            self.machine.transition(ConversationState.LISTENING, "response_fault_recovered")
+
+    async def _handle_fault(
+        self,
+        stage: str,
+        exc: Exception,
+        turn_id: int | None,
+    ) -> None:
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise exc
+        fault = RuntimeFault(
+            stage=stage,
+            error_type=type(exc).__name__,
+            message=str(exc),
+            turn_id=turn_id,
+        )
+        try:
+            self._event_sink.fault(fault)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            pass
+
+        try:
+            try:
+                await self.playback.cancel()
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as cleanup_exc:
+                self._record_cleanup_fault(
+                    f"{stage}.playback_cleanup", cleanup_exc, turn_id
+                )
+
+            cancellations = self._provider_cancellations()
+            if cancellations:
+                results = await asyncio.gather(*cancellations, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, (KeyboardInterrupt, SystemExit)):
+                        raise res
+                    if isinstance(res, asyncio.CancelledError):
+                        raise res
+                    if isinstance(res, Exception):
+                        self._record_cleanup_fault(
+                            f"{stage}.provider_cleanup", res, turn_id
+                        )
+        finally:
+            if self.machine.state in {
+                ConversationState.THINKING,
+                ConversationState.SPEAKING,
+                ConversationState.INTERRUPTED,
+            }:
+                self.machine.transition(ConversationState.LISTENING, "response_fault_recovered")
 
     async def _on_audio_chunk(self, pcm: bytes) -> None:
         await self.stt.stream_audio(pcm)

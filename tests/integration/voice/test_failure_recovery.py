@@ -108,10 +108,32 @@ class RecordingPlayback:
         self.calls.append(("cancel",))
 
 
-def build_runtime(*, stt=None, sink=None):
-    orchestrator = FakeOrchestrator()
-    tts = FailingTTS()
-    playback = RecordingPlayback()
+class ExplodingPlayback(RecordingPlayback):
+    def __init__(self, cancel_error=None):
+        super().__init__()
+        self.cancel_error = cancel_error or RuntimeError("speaker cleanup failed")
+
+    async def cancel(self):
+        await super().cancel()
+        raise self.cancel_error
+
+
+class ExplodingCancelOrchestrator(FakeOrchestrator):
+    async def cancel(self):
+        await super().cancel()
+        raise RuntimeError("llm cancel failed")
+
+
+class ExplodingCancelTTS(FailingTTS):
+    async def cancel(self):
+        await super().cancel()
+        raise RuntimeError("tts cancel failed")
+
+
+def build_runtime(*, stt=None, sink=None, orchestrator=None, tts=None, playback=None):
+    orchestrator = orchestrator or FakeOrchestrator()
+    tts = tts or FailingTTS()
+    playback = playback or RecordingPlayback()
     turn_runtime = FakeTurnRuntime()
     runtime = VoiceBrainRuntime(
         load_all_configs(REPOSITORY_ROOT).runtime,
@@ -181,3 +203,82 @@ async def test_shutdown_from_active_response_state_is_clean_and_idempotent(activ
     assert orchestrator.cancel_calls >= 1
     assert tts.cancel_calls >= 1
     assert turn_runtime.stop_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_with_playback_cancel_exception_recovers_to_listening():
+    sink = RecordingSink()
+    playback = ExplodingPlayback()
+    runtime, orchestrator, tts, _, _ = build_runtime(sink=sink, playback=playback)
+    runtime.last_result = BrainResult("قديم", AnswerRoute.EXACT, (), None)
+
+    await runtime.handle_user_turn_started()
+    result = await runtime.handle_user_turn_stopped()
+
+    assert result is None
+    assert runtime.last_result.text == "قديم"
+    assert runtime.machine.state is ConversationState.LISTENING
+    assert orchestrator.commits == []
+    assert playback.calls[-1] == ("cancel",)
+    assert tts.cancel_calls == 1
+    assert orchestrator.cancel_calls == 1
+    assert [(fault.stage, fault.turn_id) for fault in sink.faults] == [
+        ("tts", 1),
+        ("tts.playback_cleanup", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_with_provider_cancel_exception_recovers_to_listening():
+    sink = RecordingSink()
+    orchestrator = ExplodingCancelOrchestrator()
+    tts = ExplodingCancelTTS()
+    playback = RecordingPlayback()
+    runtime, _, _, _, _ = build_runtime(
+        sink=sink,
+        orchestrator=orchestrator,
+        tts=tts,
+        playback=playback,
+    )
+
+    await runtime.handle_user_turn_started()
+    result = await runtime.handle_user_turn_stopped()
+
+    assert result is None
+    assert runtime.machine.state is ConversationState.LISTENING
+    assert orchestrator.commits == []
+    assert playback.calls[-1] == ("cancel",)
+    assert orchestrator.cancel_calls == 1
+    assert tts.cancel_calls == 1
+    fault_stages = [fault.stage for fault in sink.faults]
+    assert fault_stages[0] == "tts"
+    assert "tts.provider_cleanup" in fault_stages[1:]
+    assert all(fault.turn_id == 1 for fault in sink.faults)
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_with_playback_and_provider_cancel_exceptions():
+    sink = RecordingSink()
+    orchestrator = ExplodingCancelOrchestrator()
+    tts = ExplodingCancelTTS()
+    playback = ExplodingPlayback()
+    runtime, _, _, _, _ = build_runtime(
+        sink=sink,
+        orchestrator=orchestrator,
+        tts=tts,
+        playback=playback,
+    )
+
+    await runtime.handle_user_turn_started()
+    result = await runtime.handle_user_turn_stopped()
+
+    assert result is None
+    assert runtime.machine.state is ConversationState.LISTENING
+    assert orchestrator.commits == []
+    assert playback.calls[-1] == ("cancel",)
+    assert orchestrator.cancel_calls == 1
+    assert tts.cancel_calls == 1
+    assert sink.faults[0].stage == "tts"
+    cleanup_stages = [fault.stage for fault in sink.faults[1:]]
+    assert "tts.playback_cleanup" in cleanup_stages
+    assert "tts.provider_cleanup" in cleanup_stages

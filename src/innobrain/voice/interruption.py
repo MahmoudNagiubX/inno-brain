@@ -37,24 +37,30 @@ class InterruptionController:
 
         if prior_state is ConversationState.SPEAKING:
             self._machine.transition(ConversationState.INTERRUPTED, "user_barge_in")
-            await self._playback.cancel()
-            elapsed_ms = (perf_counter() - started_at) * 1000.0
-            if self._response_cancel_callback is not None:
-                await self._response_cancel_callback()
-            self._machine.transition(
-                ConversationState.LISTENING,
-                "interruption_handled",
-            )
-            return InterruptionResult(True, prior_state, elapsed_ms)
+            try:
+                await self._playback.cancel()
+                elapsed_ms = (perf_counter() - started_at) * 1000.0
+                if self._response_cancel_callback is not None:
+                    await self._response_cancel_callback()
+                return InterruptionResult(True, prior_state, elapsed_ms)
+            finally:
+                if self._machine.state is not ConversationState.LISTENING:
+                    self._machine.transition(
+                        ConversationState.LISTENING,
+                        "interruption_handled",
+                    )
 
         if prior_state is ConversationState.THINKING:
             self._machine.transition(ConversationState.INTERRUPTED, "user_barge_in")
-            if self._response_cancel_callback is not None:
-                await self._response_cancel_callback()
-            self._machine.transition(
-                ConversationState.LISTENING,
-                "interruption_handled",
-            )
-            return InterruptionResult(True, prior_state, None)
+            try:
+                if self._response_cancel_callback is not None:
+                    await self._response_cancel_callback()
+                return InterruptionResult(True, prior_state, None)
+            finally:
+                if self._machine.state is not ConversationState.LISTENING:
+                    self._machine.transition(
+                        ConversationState.LISTENING,
+                        "interruption_handled",
+                    )
 
         return InterruptionResult(False, prior_state, None)

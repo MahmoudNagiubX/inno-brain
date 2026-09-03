@@ -117,3 +117,51 @@ async def test_listening_speech_is_not_an_interruption() -> None:
     assert result.event_to_playback_stop_ms is None
     assert playback.cancel_calls == 0
     assert machine.state is ConversationState.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_speaking_interruption_playback_cancel_raising_reaches_listening() -> None:
+    machine = speaking_machine()
+    playback = FakePlayback()
+
+    async def exploding_cancel() -> None:
+        playback.cancel_calls += 1
+        raise RuntimeError("speaker cancel failed")
+
+    playback.cancel = exploding_cancel
+    controller = InterruptionController(machine, playback)
+
+    with pytest.raises(RuntimeError, match="speaker cancel failed"):
+        await controller.handle_user_turn_started()
+
+    assert machine.state is ConversationState.LISTENING
+    assert [item.to_state for item in machine.history[-2:]] == [
+        ConversationState.INTERRUPTED,
+        ConversationState.LISTENING,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_thinking_interruption_response_cancel_raising_reaches_listening() -> None:
+    machine = ConversationStateMachine()
+    machine.transition(ConversationState.LISTENING, "runtime_started")
+    machine.transition(ConversationState.THINKING, "user_turn_complete")
+    playback = FakePlayback()
+
+    async def exploding_response_cancel() -> None:
+        raise RuntimeError("response cancel failed")
+
+    controller = InterruptionController(
+        machine,
+        playback,
+        response_cancel_callback=exploding_response_cancel,
+    )
+
+    with pytest.raises(RuntimeError, match="response cancel failed"):
+        await controller.handle_user_turn_started()
+
+    assert machine.state is ConversationState.LISTENING
+    assert [item.to_state for item in machine.history[-2:]] == [
+        ConversationState.INTERRUPTED,
+        ConversationState.LISTENING,
+    ]
