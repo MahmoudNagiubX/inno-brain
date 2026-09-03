@@ -50,9 +50,9 @@ def _message_text(message: object) -> str:
 def _message_turn_id(message: object) -> int | None:
     if isinstance(message, Mapping):
         value = message.get("turn_id")
-        return value if isinstance(value, int) else None
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
     value = getattr(message, "turn_id", None)
-    return value if isinstance(value, int) else None
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 class SpeechmaticsSTTProvider(STTProvider):
@@ -87,13 +87,22 @@ class SpeechmaticsSTTProvider(STTProvider):
         self.final_timeout_seconds = final_timeout_seconds
         self._buffer: TurnTranscriptBuffer | None = None
         self._active_turn_id: int | None = None
+        self._active_provider_turn_id: int | None = None
+        self._next_provider_turn_id: int = 0
 
     @property
     def active_turn_id(self) -> int | None:
         return self._active_turn_id
 
+    @property
+    def active_provider_turn_id(self) -> int | None:
+        return self._active_provider_turn_id
+
     async def start(self) -> None:
         self._buffer = TurnTranscriptBuffer(asyncio.get_running_loop())
+        self._active_turn_id = None
+        self._active_provider_turn_id = None
+        self._next_provider_turn_id = 0
         self._register(AgentServerMessageType.ADD_PARTIAL_SEGMENT, self._on_partial)
         self._register(AgentServerMessageType.ADD_SEGMENT, self._on_final)
         self._register(AgentServerMessageType.END_OF_TURN, self._on_end_of_turn)
@@ -105,6 +114,7 @@ class SpeechmaticsSTTProvider(STTProvider):
         if self._buffer is None:
             raise RuntimeError("Speechmatics provider has not started")
         self._active_turn_id = turn_id
+        self._active_provider_turn_id = self._next_provider_turn_id
         self._buffer.begin_turn(turn_id)
 
     async def stream_audio(self, pcm: bytes) -> None:
@@ -139,11 +149,14 @@ class SpeechmaticsSTTProvider(STTProvider):
             self._buffer.close_turn(selected_turn_id)
             if self._active_turn_id == selected_turn_id:
                 self._active_turn_id = None
+                self._active_provider_turn_id = None
 
     async def stop(self) -> None:
         if self._buffer is not None and self._active_turn_id is not None:
             self._buffer.close_turn(self._active_turn_id)
         self._active_turn_id = None
+        self._active_provider_turn_id = None
+        self._next_provider_turn_id = 0
         disconnect = getattr(self.client, "disconnect", None) or getattr(self.client, "close", None)
         if disconnect is not None:
             result = disconnect()
@@ -157,18 +170,45 @@ class SpeechmaticsSTTProvider(STTProvider):
             self.client.on(event.value, callback)
 
     def _on_partial(self, message: object) -> None:
+        if (
+            self._buffer is None
+            or self._active_turn_id is None
+            or self._active_provider_turn_id is None
+        ):
+            return
         text = _message_text(message)
-        turn_id = _message_turn_id(message) or self._active_turn_id
-        if text and turn_id is not None and self._buffer is not None:
-            self._buffer.push_from_callback(turn_id=turn_id, text=text, is_final=False)
+        if text:
+            self._buffer.push_from_callback(
+                turn_id=self._active_turn_id,
+                text=text,
+                is_final=False,
+            )
 
     def _on_final(self, message: object) -> None:
+        if (
+            self._buffer is None
+            or self._active_turn_id is None
+            or self._active_provider_turn_id is None
+        ):
+            return
         text = _message_text(message)
-        turn_id = _message_turn_id(message) or self._active_turn_id
-        if text and turn_id is not None and self._buffer is not None:
-            self._buffer.push_from_callback(turn_id=turn_id, text=text, is_final=True)
+        if text:
+            self._buffer.push_from_callback(
+                turn_id=self._active_turn_id,
+                text=text,
+                is_final=True,
+            )
 
     def _on_end_of_turn(self, message: object) -> None:
-        turn_id = _message_turn_id(message) or self._active_turn_id
-        if turn_id is not None and self._buffer is not None:
-            self._buffer.complete_from_callback(turn_id=turn_id)
+        provider_turn_id = _message_turn_id(message)
+        if (
+            provider_turn_id is None
+            or self._active_turn_id is None
+            or self._active_provider_turn_id is None
+            or self._buffer is None
+        ):
+            return
+        if provider_turn_id != self._active_provider_turn_id:
+            return
+        self._buffer.complete_from_callback(turn_id=self._active_turn_id)
+        self._next_provider_turn_id = provider_turn_id + 1
