@@ -6,6 +6,7 @@ from enum import StrEnum
 from innobrain.providers import ChatMessage
 
 from .grounding import GroundingContext, render_grounding_context
+from .knowledge_binding import ActiveKnowledgeBinding
 from .memory import SessionMemory
 from .persona import system_policy
 
@@ -29,15 +30,19 @@ class BrainResult:
 class GroundedOrchestrator:
     def __init__(
         self,
-        resolver: object,
-        retriever: object,
+        resolver: object | None = None,
+        retriever: object | None = None,
         *,
         memory: SessionMemory | None = None,
         llm_provider: object | None = None,
         policy: str | None = None,
+        knowledge: ActiveKnowledgeBinding | None = None,
     ) -> None:
+        if knowledge is None and (resolver is None or retriever is None):
+            raise ValueError("resolver and retriever are required without a knowledge binding")
         self.resolver = resolver
         self.retriever = retriever
+        self.knowledge = knowledge
         self.memory = memory or SessionMemory()
         self.llm_provider = llm_provider
         self.policy = policy or system_policy()
@@ -50,7 +55,14 @@ class GroundedOrchestrator:
         delivery_callback: Callable[[str], Awaitable[bool] | bool] | None = None,
     ) -> BrainResult:
         self.memory.expire_if_idle()
-        exact = self.resolver.resolve(
+        if self.knowledge is not None:
+            snapshot = self.knowledge.snapshot()
+            resolver = snapshot.resolver
+            retriever = snapshot.retriever
+        else:
+            resolver = self.resolver
+            retriever = self.retriever
+        exact = resolver.resolve(
             user_text,
             active_entities=self.memory.active_entities(),
         )
@@ -71,7 +83,7 @@ class GroundedOrchestrator:
             )
             return result
 
-        evidence_pack = await self.retriever.retrieve(user_text)
+        evidence_pack = await retriever.retrieve(user_text)
         if not evidence_pack.evidence:
             result = BrainResult(
                 text="مش لاقي معلومة مؤكدة عن السؤال ده في بيانات الـevent.",

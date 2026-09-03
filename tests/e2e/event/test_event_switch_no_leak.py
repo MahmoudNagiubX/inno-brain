@@ -4,12 +4,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from innobrain.conversation.knowledge_binding import ActiveKnowledgeBinding, KnowledgeSnapshot
 from innobrain.conversation.memory import SessionMemory
+from innobrain.conversation.orchestrator import GroundedOrchestrator
 from innobrain.event.activation import ActivationManager
 from innobrain.event.builder import build_event_package
 from innobrain.event.installer import install_event_package
 from innobrain.event.registry import EventRegistry
-from innobrain.event.runtime import RuntimeContextSwitcher
+from innobrain.event.runtime import RuntimeContextSwitcher, open_runtime_context
 from innobrain.event.validation import PackageVerificationPolicy
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -45,11 +47,8 @@ async def _build_and_install(fixture_name: str, tmp_path: Path, data_root: Path)
     installed.close()
 
 
-def _texts(context, query: str) -> list[str]:
-    return [
-        row["text"]
-        for row in context.repository.lexical_search(context.record.event_id, query, 5)
-    ]
+async def _answer(orchestrator: GroundedOrchestrator, query: str) -> str:
+    return (await orchestrator.answer(query)).text
 
 
 @pytest.mark.asyncio
@@ -61,7 +60,17 @@ async def test_switching_events_has_no_old_data_and_resets_session_memory(tmp_pa
     alpha = registry.get("event-alpha")
     beta = registry.get("event-beta")
     memory = SessionMemory()
-    switcher = RuntimeContextSwitcher(memory)
+    alpha_context = open_runtime_context(alpha)
+    binding = ActiveKnowledgeBinding(
+        KnowledgeSnapshot(
+            alpha.event_id,
+            alpha.event_version,
+            alpha_context.resolver,
+            alpha_context.retriever,
+        )
+    )
+    orchestrator = GroundedOrchestrator(memory=memory, knowledge=binding)
+    switcher = RuntimeContextSwitcher(memory, binding=binding, current=alpha_context)
     manager = ActivationManager(
         data_root,
         registry,
@@ -71,16 +80,16 @@ async def test_switching_events_has_no_old_data_and_resets_session_memory(tmp_pa
 
     manager.activate("event-alpha", build_id=alpha.build_id)
     memory.add_turn("alpha", "remembered alpha", ["ALPHA-COMPASS"])
-    assert any("ALPHA-COMPASS" in text for text in _texts(switcher.current, "ALPHA COMPASS"))
-    assert not any("BETA-LANTERN" in text for text in _texts(switcher.current, "BETA LANTERN"))
+    assert "ALPHA-COMPASS" in await _answer(orchestrator, "ALPHA COMPASS")
+    assert "BETA-LANTERN" not in await _answer(orchestrator, "BETA LANTERN")
 
     manager.activate("event-beta", build_id=beta.build_id)
     assert memory.recent_turns() == ()
-    assert any("BETA-LANTERN" in text for text in _texts(switcher.current, "BETA LANTERN"))
-    assert not any("ALPHA-COMPASS" in text for text in _texts(switcher.current, "ALPHA COMPASS"))
+    assert "BETA-LANTERN" in await _answer(orchestrator, "BETA LANTERN")
+    assert "ALPHA-COMPASS" not in await _answer(orchestrator, "ALPHA COMPASS")
 
     manager.rollback()
     assert switcher.current.record.event_id == "event-alpha"
-    assert any("ALPHA-COMPASS" in text for text in _texts(switcher.current, "ALPHA COMPASS"))
-    assert not any("BETA-LANTERN" in text for text in _texts(switcher.current, "BETA LANTERN"))
+    assert "ALPHA-COMPASS" in await _answer(orchestrator, "ALPHA COMPASS")
+    assert "BETA-LANTERN" not in await _answer(orchestrator, "BETA LANTERN")
     switcher.close()

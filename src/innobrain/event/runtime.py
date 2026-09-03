@@ -1,10 +1,12 @@
 import sqlite3
 from dataclasses import dataclass
 
+from innobrain.conversation.knowledge_binding import ActiveKnowledgeBinding, KnowledgeSnapshot
 from innobrain.conversation.memory import SessionMemory
 from innobrain.knowledge.database import connect_event_db
 from innobrain.knowledge.repository import EventRepository
 from innobrain.knowledge.retrieval import HybridRetriever
+from innobrain.knowledge.structured_resolver import StructuredResolver
 from innobrain.knowledge.vector_store import VectorStore
 
 from .registry import InstalledEventRecord
@@ -16,6 +18,7 @@ class ActiveRuntimeContext:
     connection: sqlite3.Connection
     repository: EventRepository
     vector_store: VectorStore
+    resolver: StructuredResolver
     retriever: HybridRetriever
 
     def close(self) -> None:
@@ -35,6 +38,7 @@ def open_runtime_context(
     try:
         vector_store = VectorStore(connection, create_if_missing=False)
         repository = EventRepository(connection)
+        resolver = StructuredResolver(repository, event_id=record.event_id)
         retriever = HybridRetriever(
             repository,
             event_id=record.event_id,
@@ -45,7 +49,14 @@ def open_runtime_context(
             final_top_k=final_top_k,
             rrf_k=rrf_k,
         )
-        return ActiveRuntimeContext(record, connection, repository, vector_store, retriever)
+        return ActiveRuntimeContext(
+            record,
+            connection,
+            repository,
+            vector_store,
+            resolver,
+            retriever,
+        )
     except Exception:
         connection.close()
         raise
@@ -54,17 +65,33 @@ def open_runtime_context(
 class RuntimeContextSwitcher:
     """Activation hook that opens new event state and resets visitor memory."""
 
-    def __init__(self, memory: SessionMemory, *, embedding_provider: object | None = None) -> None:
+    def __init__(
+        self,
+        memory: SessionMemory,
+        *,
+        embedding_provider: object | None = None,
+        binding: ActiveKnowledgeBinding | None = None,
+        current: ActiveRuntimeContext | None = None,
+    ) -> None:
         self.memory = memory
         self.embedding_provider = embedding_provider
-        self.current: ActiveRuntimeContext | None = None
+        self.binding = binding
+        self.current = current
 
     def switch(self, record: InstalledEventRecord) -> None:
         new_context = open_runtime_context(
             record,
             embedding_provider=self.embedding_provider,
         )
+        snapshot = KnowledgeSnapshot(
+            event_id=record.event_id,
+            event_version=record.event_version,
+            resolver=new_context.resolver,
+            retriever=new_context.retriever,
+        )
         old_context = self.current
+        if self.binding is not None:
+            self.binding.swap(snapshot)
         self.current = new_context
         self.memory.reset()
         if old_context is not None:
