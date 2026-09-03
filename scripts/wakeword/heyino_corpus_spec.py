@@ -8,6 +8,8 @@ Guarantees strict separation between train, calibration, and held-out splits.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -144,6 +146,16 @@ class CorpusClip:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CorpusClip:
+        if not isinstance(data, dict):
+            raise TypeError(
+                f"Expected dictionary for CorpusClip, got {type(data).__name__}"
+            )
+        required_fields = {"clip_id", "file_path", "split", "label", "is_positive"}
+        missing = required_fields - set(data.keys())
+        if missing:
+            raise ValueError(
+                f"Missing required manifest field(s) in CorpusClip dictionary: {sorted(missing)}"
+            )
         valid_fields = {
             "clip_id",
             "file_path",
@@ -362,33 +374,105 @@ def validate_manifest(
 
 
 def load_manifest(path: Path | str) -> list[CorpusClip]:
-    """Load a corpus manifest from a JSON or JSONL file."""
+    """Load a corpus manifest from a JSON or JSONL file.
+
+    Tolerates standard UTF-8 and UTF-8-BOM. Robustly distinguishes JSON array
+    from JSONL format and preserves strict CorpusClip schema.
+    """
     p = Path(path)
     if not p.is_file():
         raise FileNotFoundError(f"Corpus manifest file not found: {p}")
 
     clips: list[CorpusClip] = []
-    text = p.read_text(encoding="utf-8").strip()
+    # utf-8-sig transparently decodes both UTF-8 and UTF-8-BOM
+    text = p.read_text(encoding="utf-8-sig").lstrip("\ufeff").strip()
     if not text:
         return []
 
     if text.startswith("["):
-        data = json.loads(text)
-        for item in data:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as err:
+            # Check if lines could be independent JSONL objects despite leading '['
+            try:
+                parsed_jsonl: list[CorpusClip] = []
+                for line in text.splitlines():
+                    stripped_line = line.strip()
+                    if stripped_line:
+                        item = json.loads(stripped_line)
+                        if not isinstance(item, dict):
+                            raise ValueError(f"Line is not a dict: {type(item)}")
+                        parsed_jsonl.append(CorpusClip.from_dict(item))
+                return parsed_jsonl
+            except Exception:
+                raise ValueError(
+                    f"Failed to parse JSON array manifest from {p}: {err}"
+                ) from err
+
+        if not isinstance(data, list):
+            raise ValueError(
+                f"Manifest {p} contains {type(data).__name__}, expected JSON array or JSONL"
+            )
+        for idx, item in enumerate(data):
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"Manifest entry {idx} in {p} is not an object: {type(item).__name__}"
+                )
             clips.append(CorpusClip.from_dict(item))
-    else:
-        # JSONL format
-        for line in text.splitlines():
-            line = line.strip()
-            if line:
-                clips.append(CorpusClip.from_dict(json.loads(line)))
+        return clips
+
+    # JSONL format: each non-empty line must be a valid JSON object
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        stripped_line = line.strip()
+        if not stripped_line:
+            continue
+        try:
+            item = json.loads(stripped_line)
+        except json.JSONDecodeError as err:
+            raise ValueError(
+                f"Invalid JSON on line {line_no} of manifest {p}: {err}"
+            ) from err
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"Manifest line {line_no} in {p} must be a JSON object, got {type(item).__name__}"
+            )
+        clips.append(CorpusClip.from_dict(item))
 
     return clips
 
 
-def save_manifest(path: Path | str, clips: Sequence[CorpusClip]) -> None:
-    """Save corpus clips to a formatted JSON manifest file."""
-    p = Path(path)
+def save_manifest(path: Path | str, clips: Sequence[CorpusClip | dict[str, Any]]) -> None:
+    """Save corpus clips to a formatted JSON manifest file atomically.
+
+    Uses a temporary file in the manifest directory, flushes and fsyncs,
+    and replaces the target file atomically with os.replace. Cleans temporary
+    file on failure and preserves existing manifest.
+    """
+    p = Path(path).resolve()
     p.parent.mkdir(parents=True, exist_ok=True)
-    data = [c.to_dict() for c in clips]
-    p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    data = [
+        c.to_dict() if isinstance(c, CorpusClip) else CorpusClip.from_dict(c).to_dict()
+        for c in clips
+    ]
+    encoded = (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=p.parent,
+            prefix=f".{p.name}.tmp_",
+            delete=False,
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+            tmp_file.write(encoded)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_path, p)
+        tmp_path = None
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
