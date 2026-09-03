@@ -7,7 +7,7 @@ workers. The main Codex integrator reviews and commits each worker's diff.
 |---|---|---|---|---|
 | A | Wake contracts, ring buffer, local engine adapters, router, wake runtime | reviewed+committed | `b3afd02` | 43 wake tests passed; Ruff and diff checks passed |
 | B | Corpus metadata, hard negatives, training/evaluation/calibration tooling | reviewed+committed | `376f916` | 72 wake tests passed; Ruff and staged diff checks passed; data/model acceptance remains pending |
-| C | Attention states, follow-up policy, addressivity, presence hook | queued | — | pending |
+| C | Attention states, follow-up policy, addressivity, presence hook | reviewed+committed | `22dbdc1` | 41 attention tests passed; Ruff and staged diff checks passed |
 | D | Application/PCM integration, config, `.env`, CLI, watchdog telemetry | queued | — | pending |
 
 ## Integrator constraints
