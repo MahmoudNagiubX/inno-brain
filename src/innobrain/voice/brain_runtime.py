@@ -69,6 +69,15 @@ class VoiceBrainRuntime:
     def active_turn_id(self) -> int | None:
         return self._active_turn_id
 
+    @property
+    def is_quiescent(self) -> bool:
+        return (
+            self.machine.state in {ConversationState.IDLE, ConversationState.LISTENING}
+            and self._active_turn_id is None
+            and (self._response_task is None or self._response_task.done())
+            and (self._turn_task is None or self._turn_task.done())
+        )
+
     async def start(self) -> None:
         if self._started:
             return

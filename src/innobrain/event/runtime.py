@@ -72,16 +72,28 @@ class RuntimeContextSwitcher:
         embedding_provider: object | None = None,
         binding: ActiveKnowledgeBinding | None = None,
         current: ActiveRuntimeContext | None = None,
+        lexical_top_k: int = 12,
+        dense_top_k: int = 12,
+        final_top_k: int = 5,
+        rrf_k: int = 60,
     ) -> None:
         self.memory = memory
         self.embedding_provider = embedding_provider
         self.binding = binding
         self.current = current
+        self.lexical_top_k = lexical_top_k
+        self.dense_top_k = dense_top_k
+        self.final_top_k = final_top_k
+        self.rrf_k = rrf_k
 
     def switch(self, record: InstalledEventRecord) -> None:
         new_context = open_runtime_context(
             record,
             embedding_provider=self.embedding_provider,
+            lexical_top_k=self.lexical_top_k,
+            dense_top_k=self.dense_top_k,
+            final_top_k=self.final_top_k,
+            rrf_k=self.rrf_k,
         )
         snapshot = KnowledgeSnapshot(
             event_id=record.event_id,
