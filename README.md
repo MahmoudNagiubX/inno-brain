@@ -10,7 +10,7 @@ Current development: Windows laptop + laptop microphone/output.
 
 Target deployment: Raspberry Pi 5 8 GB + Anker PowerConf S330; production hardware validation remains pending.
 
-Current status: Gate 5B.1 final targeted Sol re-review is clean: `READY_FOR_PHASE5_VOICE`. Gate 5C is authorized but not started. Prior provider, interactive voice, and Pi/S330 acceptance remains deferred.
+Current status: Gate 5B.1 final targeted Sol re-review is clean: `READY_FOR_PHASE5_VOICE`. Gate 5C.0 wake and attention implementation is complete with wake data pending: `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`. Real provider/API voice, interactive voice, and Pi/S330 acceptance remain deferred.
 
 Implemented:
 - realtime PCM pipeline
@@ -40,7 +40,7 @@ Deferred validation:
 - provider smoke with live credentials
 
 Next:
-Begin the separately controlled Gate 5C real-provider and real-voice validation when explicitly scheduled. No Gate 5C execution has occurred.
+Collect the separate held-out human Heyino corpus, calibrate and compare openWakeWord against Porcupine, then schedule the separately controlled real-provider/real-voice gate. No real provider or microphone acceptance execution occurred in Gate 5C.0.
 
 Offline readiness inspection (does not call providers or open a microphone stream):
 
@@ -48,4 +48,4 @@ Offline readiness inspection (does not call providers or open a microphone strea
 python -m innobrain check
 ```
 
-The `run` entrypoint is intentionally startup-blocked until Gate 5C is authorized.
+The `run` entrypoint is wired for the authorized runtime but remains unexecuted in Gate 5C.0; API credentials and live voice scheduling are still required.

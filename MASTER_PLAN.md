@@ -3,7 +3,7 @@
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
 > **Version:** 1.18
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 wake and attention implementation in progress; real provider/API voice not started
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`; real provider/API voice not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -3599,6 +3599,33 @@ Gate 5C.0 must end as `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`
 when held-out real-user data is insufficient. It does not claim real voice,
 provider, or Raspberry Pi/S330 acceptance.
 
+### Gate 5C.0 implementation result — 2026-09-03
+
+- Final implementation branch: `phase/5c0-wake-attention`; code integration
+  checkpoint `7938795`.
+- Fixed product wake identity is `Heyino` (`H-E-Y-I-N-N-O`), canonical label
+  `heyino`. Candidate A (custom openWakeWord) and Candidate B (Porcupine) are
+  both represented by vendor-neutral adapters; no engine is selected because
+  the required held-out human corpus and calibration evidence do not yet exist.
+- Added local-only hard-negative, pronunciation, distance/noise corpus
+  manifest validation, threshold calibration, JSON/CSV/Markdown evaluation,
+  and builder-only training-plan tooling. Synthetic/injected tests remain
+  provisional and are not acceptance evidence.
+- Added one-stream wake fan-out with 1.5-second diagnostic pre-roll that never
+  enters STT/VAD as historical user content, same-breath current-chunk handoff,
+  orthogonal `SLEEPING`/`ENGAGED`/`FOLLOWUP_WINDOW` attention, addressivity,
+  bounded follow-up/session policy, presence hook, watchdog health, and
+  cleanup/reset isolation.
+- Added strict project-root `.env` loading without secret logging, offline
+  `check`/`wake-check`, and a wired but intentionally unexecuted `run` path.
+- Fresh offline verification: full pytest `349 passed / 2 expected skips`,
+  focused wake/attention/config/application checks `149 passed`, Ruff clean,
+  pip check clean, and `git diff --check` clean. `wake-check` reported both
+  candidate assets/dependencies as `data_pending`; no model or wake acceptance
+  was claimed.
+- No real Speechmatics, Deepgram, Groq, Azure, microphone, Pi/S330, Robot,
+  Screen, ROS, or API setup work was performed. Phase 6 remains not started.
+
 Prove the complete controlled conversation path:
 
 ```text
@@ -4437,5 +4464,10 @@ Pepper realtime AI:
   `PresenceSignal` boundary.
 - Added the offline `.env`/`wake-check` direction and wake watchdog health
   requirements without authorizing real provider/API voice execution.
+- Recorded Gate 5C.0 implementation as
+  `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING` after the offline
+  wake/attention/application gates passed. Preserved data, provider, physical
+  microphone, and Pi/S330 validation debt; Gate 5C.0 did not authorize or run
+  real API voice execution.
 
 **End of Master Plan v1.18**
