@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.17
+> **Version:** 1.18
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C authorized but not started
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 wake and attention implementation in progress; real provider/API voice not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -3555,6 +3555,50 @@ Gate 5B.1 final blocker decisions:
 
 ### Gate 5C — Real Provider + Real Voice Integration
 
+#### Gate 5C.0 — Heyino Wake + Adaptive Attention Foundation
+
+Gate 5C.0 adds a hardware-agnostic local wake and attention layer before any
+real provider/API voice execution. The fixed wake phrase is `Heyino`, spelled
+`H-E-Y-I-N-N-O`, and is represented by the single semantic label `heyino`.
+
+The locked architecture is:
+
+1. A vendor-neutral `WakeWordEngine` boundary accepts 16 kHz PCM16 frames and
+   returns timestamped detections. `OpenWakeWordEngine` and
+   `PorcupineWakeWordEngine` are adapters; vendor objects never enter the
+   conversation runtime.
+2. Candidate selection is evidence-driven. A custom-trained openWakeWord
+   candidate is benchmarked against a custom Porcupine candidate with separate
+   training, calibration and held-out evaluation data. Thresholds are chosen
+   from recall, false activations/hour, latency, pronunciation, speaker,
+   distance and noise measurements, never by feel. Heavy training packages are
+   optional/builder-only and PyTorch is not a normal robot runtime dependency.
+3. One existing PCM microphone stream feeds a bounded pre-roll/continuation
+   router. In `SLEEPING`, only the local wake detector receives frames. In
+   `ENGAGED` or `FOLLOWUP_WINDOW`, the existing VAD, Smart Turn and STT path
+   receives the preserved same-breath command audio. Wake audio is never sent
+   to cloud STT.
+4. Attention is orthogonal to the existing `IDLE`, `LISTENING`, `THINKING`,
+   `SPEAKING` and `INTERRUPTED` conversation states. It uses `SLEEPING`,
+   `ENGAGED` and `FOLLOWUP_WINDOW`, with a short adaptive follow-up window,
+   bounded hard session cap, rejected-background limit, and an explicit
+   `AddressivityGate` for directed versus background speech.
+5. Explicit `Heyino` is always directed. Background or ambiguous speech is
+   rejected conservatively, and silence after a response returns to sleeping
+   quickly instead of opening a 60-second passive listening window. Existing
+   playback-first barge-in and cancellation behavior remains unchanged.
+6. A future-safe `PresenceSignal` returns `bool | None`; the Gate 5C.0 default
+   returns `None` and makes no physical-presence claim. A local wake watchdog
+   exposes readiness, last-frame/detection times, active engine, model hash,
+   error count and restart count, and enters visible degraded state instead of
+   crash-looping.
+7. Development `.env` loading is deterministic and secret-safe. `check` and
+   `wake-check` are offline-only; `run` remains unexecuted in Gate 5C.0.
+
+Gate 5C.0 must end as `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`
+when held-out real-user data is insufficient. It does not claim real voice,
+provider, or Raspberry Pi/S330 acceptance.
+
 Prove the complete controlled conversation path:
 
 ```text
@@ -4380,4 +4424,18 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.17**
+## v1.18 - 2026-09-03
+
+- Locked the Gate 5C.0 Heyino (`H-E-Y-I-N-N-O`) local wake and adaptive
+  attention architecture before production-code changes.
+- Required evidence-driven custom openWakeWord versus Porcupine comparison,
+  hard negatives, pronunciation/noise evaluation, held-out calibration,
+  bounded same-breath command preservation, and provisional/data-pending
+  status when real-user data is insufficient.
+- Preserved one PCM microphone stream, existing provider/VAD/Smart Turn/
+  barge-in architecture, cloud isolation while sleeping, and a future
+  `PresenceSignal` boundary.
+- Added the offline `.env`/`wake-check` direction and wake watchdog health
+  requirements without authorizing real provider/API voice execution.
+
+**End of Master Plan v1.18**
