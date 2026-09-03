@@ -1,9 +1,9 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.16
+> **Version:** 1.17
 > **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `GATE_5B1_IMPLEMENTATION_COMPLETE_REVIEW_PENDING`; Gate 5C not authorized
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C authorized but not started
 > **Current development platform:** Windows laptop (primary development and testing environment)
 > **Current development audio:** Laptop microphone + laptop speakers/headphones
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
@@ -3527,8 +3527,8 @@ Locked remediation architecture:
     rollback, and shutdown lifecycle.
 13. A production-intent CLI provides an offline `python -m innobrain check`;
     Gate 5B performs no provider network calls or human microphone tests.
-14. Gate 5C remains blocked until a separate GPT-5.6 Sol re-review reports zero
-   P0/P1 findings.
+14. Gate 5C was authorized after the separate GPT-5.6 Sol re-review reported
+    zero P0/P1 findings; its real voice execution remains not started.
 
 Gate 5B.1 final blocker decisions:
 
@@ -3549,8 +3549,9 @@ Gate 5B.1 final blocker decisions:
 22. Cleanup failures are observable but cannot prevent safe state recovery.
 23. Fault and interruption cleanup restore a safe state even when playback or
     provider cancellation raises.
-24. Gate 5C remains blocked until final targeted re-review confirms P0=0 and
-    P1=0.
+24. Gate 5C is authorized only after the final targeted re-review confirms
+    P0=0 and P1=0; that confirmation is now recorded and execution remains
+    not started.
 
 ### Gate 5C — Real Provider + Real Voice Integration
 
@@ -4353,4 +4354,30 @@ Pepper realtime AI:
 
 ---
 
-**End of Master Plan v1.16**
+## v1.17 - 2026-09-03
+
+- Recorded the final targeted Gate 5B.1 Sol re-review on review branch
+  `review/gate5b1-final-sol-rereview`, comparing prior blocked-review baseline
+  `532777715206d4158981ed4b2f0dfb2f938b7971` with implementation HEAD
+  `8a1f0068c3eab5efca8f88e3675ee44dff0314b9`.
+- Closed all three previously partially-closed P1 findings: production
+  application event switching/rebinding and lifecycle isolation; Speechmatics
+  provider-session to application-turn mapping; and cleanup-safe state
+  recovery with playback-first barge-in cancellation.
+- Confirmed the previously closed package TOCTOU P0 and seven audited P1
+  findings remain closed. Final result: P0=0 and P1=0, with no new blocking
+  regression.
+- Fresh verification passed: full pytest `203 passed / 2 expected skips`,
+  focused production graph/regression suite `31 passed`, event security `2
+  passed`, archive security `12 passed`, Ruff, pip check, and diff checks.
+  Offline `python -m innobrain check` made no network calls and reported
+  `not_ready` because this environment has no active event, credentials, or
+  E5 assets.
+- Set Gate 5B.1 to `READY_FOR_PHASE5_VOICE` and authorized Gate 5C, which is
+  not started. Preserved all deferred human voice, provider, and
+  Raspberry Pi/S330 validation debt; no real providers, microphone, Robot,
+  Screen, or ROS work was performed.
+
+---
+
+**End of Master Plan v1.17**
