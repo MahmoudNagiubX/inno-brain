@@ -68,6 +68,24 @@ async def test_primary_healthy_serves_the_turn() -> None:
 
 
 @pytest.mark.asyncio
+async def test_continuous_pre_turn_audio_reaches_stt_without_opening_a_turn() -> None:
+    primary = FakeSTT("speechmatics")
+    provider = FailoverSTTProvider(primary, FakeSTT("deepgram"))
+
+    await provider.start()
+    await provider.stream_audio(b"pre-turn-silence")
+    await provider.begin_turn(1)
+    await provider.stream_audio(b"speech")
+
+    assert primary.calls == [
+        ("start",),
+        ("audio", b"pre-turn-silence"),
+        ("begin", 1),
+        ("audio", b"speech"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_primary_start_failure_cleans_up_and_starts_fallback() -> None:
     primary = FakeSTT("speechmatics", fail_start=True)
     fallback = FakeSTT("deepgram")

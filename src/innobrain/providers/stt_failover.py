@@ -70,8 +70,22 @@ class FailoverSTTProvider(STTProvider):
             await self._active.begin_turn(turn_id)
 
     async def stream_audio(self, pcm: bytes) -> None:
-        if self._active is None or self._turn_id is None:
-            raise ProviderUnavailable("STT turn has not started")
+        if self._active is None:
+            raise ProviderUnavailable("no active STT provider")
+        if self._turn_id is None:
+            try:
+                await self._active.stream_audio(pcm)
+                return
+            except Exception as exc:
+                failed = self._active
+                self._record_failure(failed, exc)
+                if failed is self.primary:
+                    await self._activate_fallback()
+                    await self._active.stream_audio(pcm)
+                    return
+                await self._cleanup(failed)
+                self._active = None
+                raise ProviderUnavailable("continuous STT audio failed") from exc
         had_accepted_audio = self._audio_accepted
         try:
             await self._active.stream_audio(pcm)
