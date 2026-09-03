@@ -7,6 +7,7 @@ from innobrain.telemetry.runtime_events import (
     LoggingRuntimeEventSink,
     RuntimeEventSink,
     RuntimeFault,
+    RuntimeObservation,
 )
 
 from ..conversation.memory import SessionMemory
@@ -142,6 +143,7 @@ class VoiceBrainRuntime:
         except Exception:
             self._active_turn_id = None
             raise
+        self._emit("turn_started", turn_id=turn_id)
         return turn_id
 
     async def handle_user_turn_stopped(self) -> BrainResult | None:
@@ -151,6 +153,7 @@ class VoiceBrainRuntime:
         self._active_turn_id = None
         if self.machine.state is not ConversationState.LISTENING:
             return None
+        self._emit("speech_stop", turn_id=turn_id, timing_marker="speech_stop")
         try:
             transcript = await self.stt.final_text(turn_id)
         except asyncio.CancelledError:
@@ -160,6 +163,12 @@ class VoiceBrainRuntime:
             return None
         if transcript.turn_id is not None and transcript.turn_id != turn_id:
             return None
+        self._emit(
+            "stt_final",
+            turn_id=turn_id,
+            transcript_final_received=True,
+            timing_marker="stt_final",
+        )
         if not transcript.text.strip():
             return None
         self.machine.transition(ConversationState.THINKING, "user_turn_stopped")
@@ -175,6 +184,14 @@ class VoiceBrainRuntime:
         stage = "brain"
         try:
             result = await self.orchestrator.answer(user_text)
+            self._emit(
+                "brain_complete",
+                turn_id=turn_id,
+                answer_route=result.route.value,
+                evidence_count=len(result.evidence_ids),
+                llm_provider=result.provider,
+                timing_marker="brain_complete",
+            )
             chunker = SentenceChunker()
             sentences = chunker.feed(result.text) + chunker.flush()
             started_playback = False
@@ -186,6 +203,11 @@ class VoiceBrainRuntime:
                         await self.playback.start(audio.sample_rate_hz)
                         started_playback = True
                         self.machine.transition(ConversationState.SPEAKING, "first_pcm")
+                        self._emit(
+                            "tts_first_pcm",
+                            turn_id=turn_id,
+                            timing_marker="tts_first_pcm",
+                        )
                     stage = "playback"
                     await self.playback.write(audio.data)
                     stage = "tts"
@@ -194,6 +216,11 @@ class VoiceBrainRuntime:
                 return result
             stage = "playback"
             await self.playback.finish()
+            self._emit(
+                "playback_stop",
+                turn_id=turn_id,
+                timing_marker="playback_stop",
+            )
             self.orchestrator.commit_delivered(user_text, result)
             self.last_result = result
             self.machine.transition(ConversationState.LISTENING, "response_delivered")
@@ -232,6 +259,8 @@ class VoiceBrainRuntime:
 
     async def _on_turn_event(self, event: TurnEvent) -> None:
         if event.event_type is TurnEventType.USER_TURN_STARTED:
+            if event.barge_in:
+                self._emit("barge_in", turn_id=self._active_turn_id, barge_in=True)
             await self.handle_user_turn_started()
             return
         if event.event_type is TurnEventType.USER_TURN_STOPPED:
@@ -259,3 +288,28 @@ class VoiceBrainRuntime:
                 )
             except Exception:
                 pass
+
+    def _emit(self, event: str, **values: object) -> None:
+        emit = getattr(self._event_sink, "emit", None)
+        if emit is None:
+            return
+        event_id = None
+        event_version = None
+        knowledge = getattr(self.orchestrator, "knowledge", None)
+        if knowledge is not None:
+            snapshot = knowledge.snapshot()
+            event_id = snapshot.event_id
+            event_version = snapshot.event_version
+        observation = RuntimeObservation(
+            event=event,
+            conversation_state=self.machine.state.value,
+            stt_provider=getattr(self.stt, "name", type(self.stt).__name__),
+            event_id=event_id,
+            event_version=event_version,
+            tts_provider=getattr(self.tts, "name", type(self.tts).__name__),
+            **values,
+        )
+        try:
+            emit(observation)
+        except Exception:
+            pass

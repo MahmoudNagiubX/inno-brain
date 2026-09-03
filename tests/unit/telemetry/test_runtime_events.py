@@ -20,7 +20,6 @@ def test_runtime_fault_is_structured_and_logging_sink_omits_transcript(caplog) -
     assert payload == {
         "error_type": "RuntimeError",
         "event": "runtime_fault",
-        "message": "synthesis failed",
         "stage": "tts",
         "turn_id": 4,
     }

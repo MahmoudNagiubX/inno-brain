@@ -101,13 +101,14 @@ class RealtimeTurnRuntime:
 
         @self.turn_processor.event_handler("on_user_turn_started")
         async def on_user_turn_started(_processor: UserTurnProcessor, strategy: Any) -> None:
+            interruption = await self.interruption.handle_user_turn_started()
             await self._record_event(
                 TurnEvent.now(
                     TurnEventType.USER_TURN_STARTED,
                     type(strategy).__name__,
+                    barge_in=interruption.interrupted,
                 )
             )
-            await self.interruption.handle_user_turn_started()
 
         @self.turn_processor.event_handler("on_user_turn_inference_triggered")
         async def on_user_turn_inference_triggered(

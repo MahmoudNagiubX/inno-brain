@@ -25,6 +25,8 @@ class FakeStream:
 
 
 class FakeSTT:
+    name = "fake-stt"
+
     def __init__(self):
         self.begun = []
         self.finalized = []
@@ -60,6 +62,8 @@ class FakeOrchestrator:
 
 
 class FakeTTS:
+    name = "fake-tts"
+
     async def cancel(self):
         return None
 
@@ -87,6 +91,18 @@ class FakePlayback:
         self.calls.append(("cancel",))
 
 
+class CollectingSink:
+    def __init__(self):
+        self.events = []
+        self.faults = []
+
+    def emit(self, observation):
+        self.events.append(observation)
+
+    def fault(self, fault):
+        self.faults.append(fault)
+
+
 @pytest.mark.asyncio
 async def test_voice_brain_runtime_completes_synthetic_turn_and_interruption():
     config = load_all_configs(REPOSITORY_ROOT).runtime
@@ -108,6 +124,43 @@ async def test_voice_brain_runtime_completes_synthetic_turn_and_interruption():
 
     assert result is not None
     assert runtime.machine.state is ConversationState.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_synthetic_turn_emits_required_provider_route_state_and_timing_events():
+    sink = CollectingSink()
+    stt = FakeSTT()
+    orchestrator = FakeOrchestrator()
+    playback = FakePlayback()
+    runtime = VoiceBrainRuntime(
+        load_all_configs(REPOSITORY_ROOT).runtime,
+        stt=stt,
+        orchestrator=orchestrator,
+        tts=FakeTTS(),
+        playback=playback,
+        stream=FakeStream(),
+        event_sink=sink,
+    )
+
+    await runtime.handle_user_turn_started()
+    await runtime.handle_user_turn_stopped()
+
+    by_name = {item.event: item for item in sink.events}
+    assert {
+        "turn_started",
+        "speech_stop",
+        "stt_final",
+        "brain_complete",
+        "tts_first_pcm",
+        "playback_stop",
+    }.issubset(by_name)
+    assert by_name["stt_final"].transcript_final_received is True
+    assert by_name["brain_complete"].answer_route == "rag_degraded"
+    assert by_name["brain_complete"].evidence_count == 1
+    assert by_name["turn_started"].stt_provider == "fake-stt"
+    assert by_name["tts_first_pcm"].tts_provider == "fake-tts"
+    assert all(item.turn_id == 1 for item in sink.events)
+    assert all(item.conversation_state for item in sink.events)
     assert playback.calls == [("start", 16000), ("write", b"pcm"), ("finish",)]
     assert orchestrator.committed == [("Future of AI", "رد واضح.")]
     assert stt.begun == [1]
