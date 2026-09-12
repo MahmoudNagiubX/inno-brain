@@ -128,4 +128,6 @@ async def test_sounddevice_pcm_stream_receives_resolved_input_device_and_passes_
     stream_desc = SoundDevicePCMStream(device=desc, input_stream_factory=factory)
     stream_desc.start()
     assert streams[0].kwargs["device"] == 2
+    assert stream_desc.stats.selected_device_name == "Anker PowerConf S330"
+    assert stream_desc.stats.selected_host_api == "MME"
     stream_desc.stop()

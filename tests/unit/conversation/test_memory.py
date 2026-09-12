@@ -23,3 +23,13 @@ def test_memory_expires_after_301_seconds_and_does_not_store_cancelled_draft() -
     assert memory.expire_if_idle() is True
     assert memory.recent_turns() == ()
     assert memory.active_entities() == ()
+
+
+def test_memory_keeps_bounded_language_style_and_event_reset_returns_to_arabic() -> None:
+    memory = SessionMemory()
+    memory.set_language_style("en")
+    assert memory.language_style == "en"
+
+    memory.reset()
+
+    assert memory.language_style == "ar-EG"

@@ -25,3 +25,36 @@ async def test_runtime_events_are_exposed_without_provider_modules() -> None:
     assert "innobrain.providers.llm" not in __import__("sys").modules
     assert "innobrain.providers.tts" not in __import__("sys").modules
     await runtime.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_feed_audio_queues_vad_frame_before_stt_observer() -> None:
+    class OneChunkStream:
+        def start(self):
+            return None
+
+        def stop(self):
+            return None
+
+        async def chunks(self):
+            yield b"pcm"
+
+    order: list[str] = []
+
+    async def observe(_pcm: bytes) -> None:
+        order.append("stt-observer")
+
+    runtime = RealtimeTurnRuntime(
+        load_all_configs(REPOSITORY_ROOT).runtime,
+        stream=OneChunkStream(),
+        on_audio_chunk=observe,
+    )
+
+    async def queue_frames(_frames) -> None:
+        order.append("vad-frame")
+
+    runtime.worker.queue_frames = queue_frames
+    await runtime._feed_audio()
+
+    assert order == ["vad-frame", "stt-observer"]
+    await runtime.cleanup()

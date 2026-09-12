@@ -21,6 +21,10 @@ class AzureTTSProvider(TTSProvider):
         region: str | None = None,
         synthesizer: object | None = None,
         sample_rate_hz: int = 16000,
+        locale: str = "ar-EG",
+        voice: str = "ar-EG-ShakirNeural",
+        english_locale: str = "en-US",
+        english_voice: str = "en-US-JennyNeural",
     ) -> None:
         self.api_key = api_key or os.environ.get("AZURE_SPEECH_KEY")
         self.region = region or os.environ.get("AZURE_SPEECH_REGION")
@@ -29,12 +33,15 @@ class AzureTTSProvider(TTSProvider):
                 "AZURE_SPEECH_KEY and AZURE_SPEECH_REGION are required"
             )
         self.sample_rate_hz = sample_rate_hz
+        self.locale = locale
+        self.voice = voice
+        self.english_locale = english_locale
+        self.english_voice = english_voice
         self.speech_config = speechsdk.SpeechConfig(
             subscription=self.api_key or "injected-test-key",
             region=self.region or "injected-test-region",
         )
-        self.speech_config.speech_synthesis_voice_name = "ar-EG-ShakirNeural"
-        self.speech_config.speech_synthesis_language = "ar-EG"
+        self._set_voice(language=self.locale)
         self.speech_config.set_speech_synthesis_output_format(
             speechsdk.SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm
         )
@@ -45,13 +52,19 @@ class AzureTTSProvider(TTSProvider):
         self._active_task: asyncio.Task[object] | None = None
         self._active_queue: asyncio.Queue[object] | None = None
 
-    def stream(self, text: str) -> AsyncIterator[AudioChunk]:
-        return self._stream(text)
+    def stream(self, text: str, *, language: str | None = None) -> AsyncIterator[AudioChunk]:
+        return self._stream(text, language=language)
 
-    async def _stream(self, text: str) -> AsyncIterator[AudioChunk]:
+    async def _stream(
+        self,
+        text: str,
+        *,
+        language: str | None = None,
+    ) -> AsyncIterator[AudioChunk]:
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[object] = asyncio.Queue()
         self._active_queue = queue
+        self._set_voice(language=language)
 
         def on_synthesizing(event: object) -> None:
             result = getattr(event, "result", event)
@@ -94,6 +107,16 @@ class AzureTTSProvider(TTSProvider):
         if get is None:
             return future
         return get()
+
+    def _set_voice(self, *, language: str | None) -> None:
+        if language is not None and language.lower().startswith("en"):
+            locale = self.english_locale
+            voice = self.english_voice
+        else:
+            locale = self.locale
+            voice = self.voice
+        self.speech_config.speech_synthesis_voice_name = voice
+        self.speech_config.speech_synthesis_language = locale
 
     def _connect_callbacks(self, callback: object) -> list[object]:
         signal = getattr(self.synthesizer, "synthesizing", None)

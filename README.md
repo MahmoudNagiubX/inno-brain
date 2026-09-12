@@ -6,11 +6,11 @@ The target edge hardware is a Raspberry Pi 5 with 8 GB RAM and an Anker PowerCon
 
 The research repositories are maintained in the sibling `donor-repos/` directory and are not production dependencies.
 
-Current development: Windows laptop + laptop microphone/output.
+Current development: Windows laptop + Anker PowerConf S330 A3308 microphone and speaker.
 
 Target deployment: Raspberry Pi 5 8 GB + Anker PowerConf S330; production hardware validation remains pending.
 
-Current status: Gate 5B.1 final targeted Sol re-review is clean: `READY_FOR_PHASE5_VOICE`. Gate 5C.0 wake and attention implementation is complete with wake data pending: `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`. Real provider/API voice, interactive voice, and Pi/S330 acceptance remain deferred.
+Current status: Gate 5C.1A structural P1 remediation is complete on the core-voice/multilingual/S330-routing branch. The S330 is property-selected as the primary Windows development input/output, and development wake bypass is explicit and production-forbidden. Real provider/API voice, physical S330 acoustics, interactive multilingual acceptance, and Pi validation remain deferred.
 
 Implemented:
 - realtime PCM pipeline
@@ -22,6 +22,10 @@ Implemented:
 - Speechmatics primary STT with Deepgram Nova-3 fallback adapters
 - Groq grounded LLM adapter with `openai/gpt-oss-120b` baseline
 - Azure `ar-EG-ShakirNeural` TTS adapter
+- per-turn Arabic/English/mixed language policy with configurable English Azure voice
+- capability-aware provider startup and incremental LLM sentence streaming into TTS
+- development-only wake bypass with visible health/CLI state
+- property/capability-based S330 input and output routing without persisted device indexes
 - structured SQLite event facts and FTS5 + sqlite-vec/RRF retrieval
 - multilingual-E5 ONNX embedding boundary
 - ten-turn/300-second grounded session memory
@@ -36,11 +40,13 @@ Deferred validation:
 - controlled Egyptian turn/hesitation test
 - live barge-in acceptance
 - final end-to-end voice acceptance
-- Raspberry Pi/S330 production validation
+- physical S330 full-duplex/acoustic validation on Windows
+- Raspberry Pi production validation
+- real Arabic provider voice and real English/code-switch validation
 - provider smoke with live credentials
 
 Next:
-Collect the separate held-out human Heyino corpus, calibrate and compare openWakeWord against Porcupine, then schedule the separately controlled real-provider/real-voice gate. No real provider or microphone acceptance execution occurred in Gate 5C.0.
+Run the controlled local S330 physical validation, then real Arabic provider voice and real English/code-switch validation. Heyino corpus collection/training/calibration remains deferred until after core voice and multilingual validation. No real provider call or physical audio stream was executed in Gate 5C.1A.
 
 Offline readiness inspection (does not call providers or open a microphone stream):
 
@@ -48,4 +54,4 @@ Offline readiness inspection (does not call providers or open a microphone strea
 python -m innobrain check
 ```
 
-The `run` entrypoint is wired for the authorized runtime but remains unexecuted in Gate 5C.0; API credentials and live voice scheduling are still required.
+The `run` entrypoint is wired for the authorized runtime but remains unexecuted in Gate 5C.1A; API credentials and live voice scheduling are still required.

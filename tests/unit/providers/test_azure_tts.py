@@ -52,3 +52,19 @@ async def test_azure_tts_configures_male_egyptian_raw_pcm_and_streams_chunks():
     assert chunks[0].sample_rate_hz == 16000
     assert chunks[0].channels == 1
     assert synthesizer.calls == ["أهلاً بيك"]
+
+
+@pytest.mark.asyncio
+async def test_azure_tts_selects_configured_english_voice_per_response():
+    synthesizer = FakeSynthesizer()
+    provider = AzureTTSProvider(
+        synthesizer=synthesizer,
+        english_locale="en-US",
+        english_voice="en-US-JennyNeural",
+    )
+
+    chunks = [chunk async for chunk in provider.stream("Where is the stage?", language="en")]
+
+    assert chunks[0].data == b"pcm"
+    assert provider.speech_config.speech_synthesis_voice_name == "en-US-JennyNeural"
+    assert provider.speech_config.speech_synthesis_language == "en-US"

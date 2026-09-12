@@ -26,16 +26,23 @@ def _field(value: object, name: str, default: object = None) -> object:
     return getattr(value, name, default)
 
 
-def _transcript(message: object) -> tuple[str, bool, bool, int | None]:
+def _transcript(message: object) -> tuple[str, bool, bool, int | None, str | None]:
     message_type = _field(message, "type", "")
     if message_type not in ("", "Results"):
-        return "", False, False, None
+        return "", False, False, None, None
     channel = _field(message, "channel")
     alternatives = _field(channel, "alternatives", [])
     if not alternatives:
         text = ""
+        language = None
     else:
-        text = str(_field(alternatives[0], "transcript", "") or "")
+        alternative = alternatives[0]
+        text = str(_field(alternative, "transcript", "") or "")
+        language = _field(alternative, "language")
+        language = language if isinstance(language, str) else None
+    message_language = _field(message, "language")
+    if isinstance(message_language, str):
+        language = message_language
     turn_id = _field(message, "turn_id")
     if not isinstance(turn_id, int):
         turn_id = None
@@ -44,6 +51,7 @@ def _transcript(message: object) -> tuple[str, bool, bool, int | None]:
         bool(_field(message, "is_final", False)),
         bool(_field(message, "speech_final", False)),
         turn_id,
+        language,
     )
 
 
@@ -58,6 +66,8 @@ class DeepgramSTTProvider(STTProvider):
         connection_factory: Callable[..., object] | None = None,
         glossary: Iterable[str] = EVENT_GLOSSARY,
         final_timeout_seconds: float = 3.0,
+        model: str = "nova-3",
+        language: str = "multi",
     ) -> None:
         self._api_key = api_key or os.environ.get("DEEPGRAM_API_KEY")
         if client is None and connection_factory is None and not self._api_key:
@@ -66,9 +76,11 @@ class DeepgramSTTProvider(STTProvider):
         self.connection_factory = connection_factory
         self.keyterms = tuple(glossary)
         self.final_timeout_seconds = final_timeout_seconds
+        self.model = model
+        self.language = language
         self.options = {
-            "model": "nova-3",
-            "language": "ar-EG",
+            "model": model,
+            "language": language,
             "encoding": "linear16",
             "sample_rate": 16000,
             "channels": 1,
@@ -88,7 +100,10 @@ class DeepgramSTTProvider(STTProvider):
         return self._active_turn_id
 
     async def start(self) -> None:
-        self._buffer = TurnTranscriptBuffer(asyncio.get_running_loop())
+        self._buffer = TurnTranscriptBuffer(
+            asyncio.get_running_loop(),
+            default_language=self.language,
+        )
         if self.connection is None:
             def create_connection() -> object:
                 if self.connection_factory is not None:
@@ -182,7 +197,7 @@ class DeepgramSTTProvider(STTProvider):
             self.connection.on(event.value, callback)
 
     def _on_message(self, message: object) -> None:
-        text, is_final, is_terminal, message_turn_id = _transcript(message)
+        text, is_final, is_terminal, message_turn_id, language = _transcript(message)
         turn_id = message_turn_id or self._active_turn_id
         if turn_id is None or self._buffer is None:
             return
@@ -191,6 +206,7 @@ class DeepgramSTTProvider(STTProvider):
                 turn_id=turn_id,
                 text=text,
                 is_final=is_final,
+                language=language,
             )
         if is_terminal:
             self._buffer.complete_from_callback(turn_id=turn_id)

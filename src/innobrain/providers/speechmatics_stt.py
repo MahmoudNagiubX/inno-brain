@@ -55,6 +55,34 @@ def _message_turn_id(message: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _message_language(message: object) -> str | None:
+    if isinstance(message, Mapping):
+        direct = message.get("language")
+        if isinstance(direct, str):
+            return direct
+        for key in ("segments", "results", "alternatives"):
+            value = message.get(key)
+            if isinstance(value, Iterable) and not isinstance(value, (str, bytes, Mapping)):
+                for item in value:
+                    language = _message_language(item)
+                    if language:
+                        return language
+        return None
+    dump = getattr(message, "model_dump", None)
+    if callable(dump):
+        return _message_language(dump())
+    direct = getattr(message, "language", None)
+    if isinstance(direct, str):
+        return direct
+    segments = getattr(message, "segments", None)
+    if isinstance(segments, Iterable) and not isinstance(segments, (str, bytes, Mapping)):
+        for item in segments:
+            language = _message_language(item)
+            if language:
+                return language
+    return None
+
+
 class SpeechmaticsSTTProvider(STTProvider):
     name = "speechmatics"
 
@@ -66,13 +94,15 @@ class SpeechmaticsSTTProvider(STTProvider):
         client_factory: Callable[..., object] | None = None,
         glossary: Iterable[str] = EVENT_GLOSSARY,
         final_timeout_seconds: float = 3.0,
+        language: str = "auto",
     ) -> None:
         self._api_key = api_key or os.environ.get("SPEECHMATICS_API_KEY")
         if client is None and not self._api_key:
             raise MissingProviderCredential("SPEECHMATICS_API_KEY is not configured")
+        self.language = language
         vocab = [AdditionalVocabEntry(content=item) for item in glossary]
         self.config = VoiceAgentConfig(
-            language="ar",
+            language=language,
             end_of_utterance_mode=EndOfUtteranceMode.EXTERNAL,
             additional_vocab=vocab,
             sample_rate=16000,
@@ -99,7 +129,10 @@ class SpeechmaticsSTTProvider(STTProvider):
         return self._active_provider_turn_id
 
     async def start(self) -> None:
-        self._buffer = TurnTranscriptBuffer(asyncio.get_running_loop())
+        self._buffer = TurnTranscriptBuffer(
+            asyncio.get_running_loop(),
+            default_language=self.language,
+        )
         self._active_turn_id = None
         self._active_provider_turn_id = None
         self._next_provider_turn_id = 0
@@ -177,11 +210,13 @@ class SpeechmaticsSTTProvider(STTProvider):
         ):
             return
         text = _message_text(message)
+        language = _message_language(message)
         if text:
             self._buffer.push_from_callback(
                 turn_id=self._active_turn_id,
                 text=text,
                 is_final=False,
+                language=language,
             )
 
     def _on_final(self, message: object) -> None:
@@ -192,11 +227,13 @@ class SpeechmaticsSTTProvider(STTProvider):
         ):
             return
         text = _message_text(message)
+        language = _message_language(message)
         if text:
             self._buffer.push_from_callback(
                 turn_id=self._active_turn_id,
                 text=text,
                 is_final=True,
+                language=language,
             )
 
     def _on_end_of_turn(self, message: object) -> None:

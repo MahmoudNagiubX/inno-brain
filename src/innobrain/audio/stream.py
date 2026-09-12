@@ -13,6 +13,8 @@ from .models import AudioDevice, AudioDeviceDescriptor, AudioDeviceResolution
 class AudioStreamStats:
     received_chunks: int
     dropped_chunks: int
+    selected_device_name: str | None = None
+    selected_host_api: str | None = None
 
 
 class SoundDevicePCMStream:
@@ -46,12 +48,16 @@ class SoundDevicePCMStream:
         self._accepting = False
         self._received_chunks = 0
         self._dropped_chunks = 0
+        self._selected_device_name: str | None = None
+        self._selected_host_api: str | None = None
 
     @property
     def stats(self) -> AudioStreamStats:
         return AudioStreamStats(
             received_chunks=self._received_chunks,
             dropped_chunks=self._dropped_chunks,
+            selected_device_name=self._selected_device_name,
+            selected_host_api=self._selected_host_api,
         )
 
     def start(self) -> None:
@@ -60,13 +66,18 @@ class SoundDevicePCMStream:
 
         self._loop = asyncio.get_running_loop()
         self._accepting = True
+        self._selected_device_name = None
+        self._selected_host_api = None
         try:
             resolved_index: int | None = None
+            resolved_device: AudioDevice | AudioDeviceResolution | None = None
             if self.device is not None:
                 if isinstance(self.device, AudioDeviceResolution):
                     resolved_index = self.device.device_index
+                    resolved_device = self.device
                 elif isinstance(self.device, AudioDevice):
                     resolved_index = self.device.index
+                    resolved_device = self.device
                 elif isinstance(self.device, int):
                     resolved_index = self.device
                 else:
@@ -78,6 +89,7 @@ class SoundDevicePCMStream:
                         sample_format="int16",
                     )
                     resolved_index = resolution.device_index
+                    resolved_device = resolution
             else:
                 default_in, _ = get_default_device_indices()
                 if default_in is not None:
@@ -89,6 +101,16 @@ class SoundDevicePCMStream:
                         sample_format="int16",
                     )
                     resolved_index = default_in
+
+            if resolved_device is not None:
+                self._selected_device_name = resolved_device.device_name if isinstance(
+                    resolved_device, AudioDeviceResolution
+                ) else resolved_device.name
+                self._selected_host_api = (
+                    resolved_device.host_api_name
+                    if isinstance(resolved_device, AudioDeviceResolution)
+                    else resolved_device.host_api_name
+                )
 
             self._stream = self._input_stream_factory(
                 samplerate=self.sample_rate_hz,
@@ -102,6 +124,8 @@ class SoundDevicePCMStream:
         except Exception:
             self._accepting = False
             self._stream = None
+            self._selected_device_name = None
+            self._selected_host_api = None
             raise
 
     def stop(self) -> None:

@@ -88,6 +88,7 @@ class SessionMemory:
 
     def reset(self) -> None:
         self._turns.clear()
+        self._language_style = "ar-EG"
 
     def expire_if_idle(self, *, now: float | None = None) -> bool:
         if not self._turns:

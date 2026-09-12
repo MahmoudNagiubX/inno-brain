@@ -8,13 +8,17 @@ from innobrain.config import RuntimeConfig, load_all_configs, load_yaml_model
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_load_all_configs_uses_egyptian_first_laptop_defaults() -> None:
+def test_load_all_configs_uses_egyptian_first_s330_windows_defaults() -> None:
     configs = load_all_configs(REPOSITORY_ROOT)
 
     assert configs.runtime.primary_locale == "ar-EG"
     assert configs.runtime.development_platform == "laptop"
-    assert configs.runtime.audio.input_device is None
-    assert configs.runtime.audio.output_device is None
+    assert configs.runtime.audio.input_device is not None
+    assert configs.runtime.audio.input_device.name_pattern == "Anker PowerConf S330"
+    assert configs.runtime.audio.input_device.host_api == "MME"
+    assert configs.runtime.audio.output_device is not None
+    assert configs.runtime.audio.output_device.name_pattern == "Anker PowerConf S330"
+    assert configs.runtime.audio.output_device.host_api == "MME"
     assert configs.runtime.audio.software_aec_enabled is False
     assert configs.runtime.audio.software_ns_enabled is False
     assert configs.runtime.realtime.audio_queue_max_chunks == 100

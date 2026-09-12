@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+from collections import deque
 from collections.abc import Callable
 from typing import Any
 
@@ -13,6 +14,7 @@ from innobrain.telemetry.runtime_events import (
     RuntimeObservation,
 )
 
+from ..conversation.language import decide_turn_language
 from ..conversation.memory import SessionMemory
 from ..conversation.orchestrator import BrainResult, GroundedOrchestrator
 from ..conversation.sentence_chunker import SentenceChunker
@@ -55,9 +57,15 @@ class VoiceBrainRuntime:
         self.last_result: BrainResult | None = None
         self._response_task: asyncio.Task[BrainResult | None] | None = None
         self._turn_task: asyncio.Task[BrainResult | None] | None = None
+        self._response_generation = 0
         self._next_turn_id = 1
         self._active_turn_id: int | None = None
         self._attention_turn_managed = False
+        self._pre_turn_audio: deque[bytes] = deque(
+            maxlen=max(1, config.realtime.audio_queue_max_chunks)
+        )
+        self._accept_pre_turn_audio = True
+        self._stt_audio_lock = asyncio.Lock()
         self._started = False
         self._closed = False
         self._event_sink = event_sink or LoggingRuntimeEventSink()
@@ -79,6 +87,10 @@ class VoiceBrainRuntime:
     @property
     def active_turn_id(self) -> int | None:
         return self._active_turn_id
+
+    @property
+    def buffered_pre_turn_audio_count(self) -> int:
+        return len(self._pre_turn_audio)
 
     @property
     def is_quiescent(self) -> bool:
@@ -120,11 +132,14 @@ class VoiceBrainRuntime:
             await self.playback.cancel()
         finally:
             self._active_turn_id = None
+            self._pre_turn_audio.clear()
+            self._accept_pre_turn_audio = False
             self._started = False
             if self.machine.state is not ConversationState.IDLE:
                 self.machine.transition(ConversationState.IDLE, "runtime_stopped")
 
     async def cancel_response(self) -> None:
+        self._response_generation += 1
         if self.wake_router is not None:
             self.wake_router.set_playback_active(False)
         task = self._response_task
@@ -179,6 +194,8 @@ class VoiceBrainRuntime:
     async def handle_user_turn_started(self, *, manage_attention: bool = False) -> int:
         if self.stt is None:
             raise ProviderUnavailable("STT capability is unavailable")
+        if self._active_turn_id is not None:
+            return self._active_turn_id
         self._attention_turn_managed = manage_attention and self.attention is not None
         if self._attention_turn_managed and not getattr(
             self.attention, "is_utterance_in_progress", False
@@ -190,11 +207,14 @@ class VoiceBrainRuntime:
             self.machine.transition(ConversationState.LISTENING, "runtime_started")
         turn_id = self._next_turn_id
         self._next_turn_id += 1
-        self._active_turn_id = turn_id
         try:
             await self.stt.begin_turn(turn_id)
+            self._active_turn_id = turn_id
+            self._accept_pre_turn_audio = False
+            await self._flush_pre_turn_audio()
         except Exception:
             self._active_turn_id = None
+            self._accept_pre_turn_audio = True
             raise
         self._emit("turn_started", turn_id=turn_id)
         return turn_id
@@ -202,16 +222,19 @@ class VoiceBrainRuntime:
     async def handle_user_turn_stopped(self) -> BrainResult | None:
         turn_id = self._active_turn_id
         if turn_id is None:
+            self._accept_pre_turn_audio = True
             if self._attention_turn_managed:
                 self._recover_attention_utterance("")
             self._attention_turn_managed = False
             return None
         self._active_turn_id = None
+        self._accept_pre_turn_audio = False
         attention_turn_managed = self._attention_turn_managed
         self._attention_turn_managed = False
         if self.machine.state is not ConversationState.LISTENING:
             if attention_turn_managed:
                 self._recover_attention_utterance("")
+            self._accept_pre_turn_audio = True
             return None
         self._emit("speech_stop", turn_id=turn_id, timing_marker="speech_stop")
         try:
@@ -219,15 +242,18 @@ class VoiceBrainRuntime:
         except asyncio.CancelledError:
             if attention_turn_managed:
                 self._recover_attention_utterance("")
+            self._accept_pre_turn_audio = True
             raise
         except Exception as exc:
             if attention_turn_managed:
                 self._recover_attention_utterance("")
             await self._handle_fault("stt_final", exc, turn_id)
+            self._accept_pre_turn_audio = True
             return None
         if transcript.turn_id is not None and transcript.turn_id != turn_id:
             if attention_turn_managed:
                 self._recover_attention_utterance("")
+            self._accept_pre_turn_audio = True
             return None
         self._emit(
             "stt_final",
@@ -238,6 +264,7 @@ class VoiceBrainRuntime:
         if not transcript.text.strip():
             if attention_turn_managed:
                 self._recover_attention_utterance("")
+            self._accept_pre_turn_audio = True
             return None
         if attention_turn_managed and self.attention is not None:
             decision = self.attention.on_utterance_end(transcript.text)
@@ -246,9 +273,17 @@ class VoiceBrainRuntime:
                     "attention_rejected",
                     turn_id=turn_id,
                 )
+                self._accept_pre_turn_audio = True
                 return None
+        self._accept_pre_turn_audio = True
         self.machine.transition(ConversationState.THINKING, "user_turn_stopped")
-        response_task = asyncio.create_task(self._respond(transcript.text, turn_id=turn_id))
+        response_task = asyncio.create_task(
+            self._respond(
+                transcript.text,
+                turn_id=turn_id,
+                language=transcript.language,
+            )
+        )
         self._response_task = response_task
         try:
             return await response_task
@@ -256,10 +291,79 @@ class VoiceBrainRuntime:
             if self._response_task is response_task:
                 self._response_task = None
 
-    async def _respond(self, user_text: str, *, turn_id: int | None = None) -> BrainResult | None:
+    async def _respond(
+        self,
+        user_text: str,
+        *,
+        turn_id: int | None = None,
+        language: str | None = None,
+    ) -> BrainResult | None:
         stage = "brain"
+        generation = self._response_generation
+        response_language = decide_turn_language(
+            user_text,
+            provider_language=language,
+            prior=self.memory.language_style,
+        ).response.value
+        started_playback = False
+        emitted_first_chunk = False
+
+        def ensure_current() -> None:
+            if generation != self._response_generation:
+                raise asyncio.CancelledError
+
+        async def speak_chunk(sentence: str) -> None:
+            nonlocal stage, started_playback, emitted_first_chunk
+            ensure_current()
+            if not sentence.strip():
+                return
+            if not emitted_first_chunk:
+                emitted_first_chunk = True
+                self._emit(
+                    "brain_first_chunk",
+                    turn_id=turn_id,
+                    timing_marker="brain_first_chunk",
+                )
+            stage = "tts"
+            self._emit(
+                "tts_request_start",
+                turn_id=turn_id,
+                timing_marker="tts_request_start",
+            )
+            async for audio in self._tts_stream(sentence, response_language):
+                ensure_current()
+                if not started_playback:
+                    stage = "playback"
+                    await self.playback.start(audio.sample_rate_hz)
+                    if self.wake_router is not None:
+                        self.wake_router.set_playback_active(True)
+                    started_playback = True
+                    self.machine.transition(ConversationState.SPEAKING, "first_pcm")
+                    self._emit(
+                        "tts_first_pcm",
+                        turn_id=turn_id,
+                        timing_marker="tts_first_pcm",
+                    )
+                stage = "playback"
+                await self.playback.write(audio.data)
+                stage = "tts"
+
         try:
-            result = await self.orchestrator.answer(user_text)
+            stream_answer = getattr(self.orchestrator, "stream_answer", None)
+            if self.tts is None:
+                result = await self._answer(user_text, language)
+            elif callable(stream_answer):
+                result = await stream_answer(
+                    user_text,
+                    on_chunk=speak_chunk,
+                    language=language,
+                )
+            else:
+                result = await self._answer(user_text, language)
+                chunker = SentenceChunker()
+                for sentence in chunker.feed(result.text) + chunker.flush():
+                    await speak_chunk(sentence)
+            ensure_current()
             self._emit(
                 "brain_complete",
                 turn_id=turn_id,
@@ -275,27 +379,6 @@ class VoiceBrainRuntime:
                 if self.attention is not None:
                     self.attention.on_reply_completed()
                 return result
-            chunker = SentenceChunker()
-            sentences = chunker.feed(result.text) + chunker.flush()
-            started_playback = False
-            for sentence in sentences:
-                stage = "tts"
-                async for audio in self.tts.stream(sentence):
-                    if not started_playback:
-                        stage = "playback"
-                        await self.playback.start(audio.sample_rate_hz)
-                        if self.wake_router is not None:
-                            self.wake_router.set_playback_active(True)
-                        started_playback = True
-                        self.machine.transition(ConversationState.SPEAKING, "first_pcm")
-                        self._emit(
-                            "tts_first_pcm",
-                            turn_id=turn_id,
-                            timing_marker="tts_first_pcm",
-                        )
-                    stage = "playback"
-                    await self.playback.write(audio.data)
-                    stage = "tts"
             if not started_playback:
                 self.machine.transition(ConversationState.LISTENING, "tts_unavailable")
                 if self.attention is not None:
@@ -321,6 +404,33 @@ class VoiceBrainRuntime:
         except Exception as exc:
             await self._handle_fault(stage, exc, turn_id)
             return None
+
+    async def _answer(self, user_text: str, language: str | None) -> BrainResult:
+        answer = self.orchestrator.answer
+        parameters = inspect.signature(answer).parameters
+        if "language" in parameters or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        ):
+            return await answer(user_text, language=language)
+        return await answer(user_text)
+
+    def _tts_stream(self, text: str, language: str):
+        if self.tts is None:
+            raise ProviderUnavailable("TTS capability is unavailable")
+        stream = self.tts.stream
+        try:
+            parameters = inspect.signature(stream).parameters.values()
+            supports_language = any(
+                parameter.name == "language"
+                or parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters
+            )
+        except (TypeError, ValueError):
+            supports_language = False
+        if supports_language:
+            return stream(text, language=language)
+        return stream(text)
 
     def _record_cleanup_fault(
         self,
@@ -400,7 +510,26 @@ class VoiceBrainRuntime:
     async def _on_audio_chunk(self, pcm: bytes) -> None:
         if self.stt is None:
             raise ProviderUnavailable("STT capability is unavailable")
-        await self.stt.stream_audio(pcm)
+        turn_id = self._active_turn_id
+        if turn_id is None:
+            if self._accept_pre_turn_audio:
+                self._pre_turn_audio.append(bytes(pcm))
+            return
+        async with self._stt_audio_lock:
+            if self._active_turn_id != turn_id:
+                return
+            await self.stt.stream_audio(pcm)
+
+    async def _flush_pre_turn_audio(self) -> None:
+        if self.stt is None or self._active_turn_id is None:
+            return
+        pending = tuple(self._pre_turn_audio)
+        self._pre_turn_audio.clear()
+        async with self._stt_audio_lock:
+            for pcm in pending:
+                if self._active_turn_id is None:
+                    return
+                await self.stt.stream_audio(pcm)
 
     async def _on_turn_event(self, event: TurnEvent) -> None:
         if event.event_type is TurnEventType.USER_TURN_STARTED:

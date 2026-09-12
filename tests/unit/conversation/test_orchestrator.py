@@ -122,3 +122,89 @@ async def test_orchestrator_explicitly_cancels_active_llm_provider():
     await orchestrator.cancel()
 
     assert llm.cancel_calls == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("query", "expected_language"),
+    [
+        ("Where is the main stage?", "en"),
+        ("إيه ميعاد الـ Main Stage؟", "ar-EG"),
+    ],
+)
+async def test_orchestrator_sets_response_language_and_preserves_it_after_delivery(
+    query, expected_language
+):
+    llm = FakeLLM()
+    orchestrator = GroundedOrchestrator(
+        FakeResolver(),
+        FakeRetriever(pack_with_evidence()),
+        llm_provider=llm,
+    )
+
+    result = await orchestrator.answer(query, delivery_confirmed=True)
+
+    assert result.language == expected_language
+    assert orchestrator.memory.language_style == expected_language
+    assert expected_language == "en" or "natural Egyptian Arabic" in llm.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_delivered_turns_can_switch_english_and_egyptian_arabic() -> None:
+    llm = FakeLLM()
+    orchestrator = GroundedOrchestrator(
+        FakeResolver(),
+        FakeRetriever(pack_with_evidence()),
+        llm_provider=llm,
+    )
+
+    english = await orchestrator.answer(
+        "Where is the main stage?",
+        delivery_confirmed=True,
+    )
+    arabic = await orchestrator.answer(
+        "إيه ميعاد الـ Main Stage؟",
+        delivery_confirmed=True,
+    )
+
+    assert english.language == "en"
+    assert arabic.language == "ar-EG"
+    assert orchestrator.memory.language_style == "ar-EG"
+    assert len(orchestrator.memory.recent_turns()) == 2
+    assert "natural Egyptian Arabic" in llm.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_stream_answer_preserves_exact_and_no_evidence_fast_paths() -> None:
+    exact = SimpleNamespace(
+        text="exact fact",
+        evidence_ids=("event:1",),
+        entities=("event",),
+    )
+    llm = FakeLLM()
+    spoken: list[str] = []
+    orchestrator = GroundedOrchestrator(
+        FakeResolver(exact),
+        FakeRetriever(EvidencePack("q", ())),
+        llm_provider=llm,
+    )
+
+    result = await orchestrator.stream_answer(
+        "Where is the event?",
+        on_chunk=spoken.append,
+    )
+
+    assert result.route is AnswerRoute.EXACT
+    assert spoken == ["exact fact"]
+    assert llm.calls == 0
+
+    orchestrator.resolver = FakeResolver()
+    spoken.clear()
+    result = await orchestrator.stream_answer(
+        "Unknown",
+        on_chunk=spoken.append,
+    )
+
+    assert result.route is AnswerRoute.NO_EVIDENCE
+    assert spoken == [result.text]
+    assert llm.calls == 0

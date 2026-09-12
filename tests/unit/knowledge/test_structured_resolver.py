@@ -34,6 +34,23 @@ def test_structured_resolver_returns_deterministic_exact_answers(tmp_path: Path)
     conn.close()
 
 
+def test_structured_resolver_localizes_exact_facts_to_english_without_llm(tmp_path: Path) -> None:
+    db_path = build_demo_db(
+        REPOSITORY_ROOT / "fixtures" / "phase3" / "demo_event.yaml",
+        tmp_path / "demo.sqlite3",
+    )
+    conn = connect_event_db(db_path)
+    resolver = StructuredResolver(EventRepository(conn), event_id="demo-2026")
+
+    answer = resolver.resolve("When is Future of AI in Events?")
+
+    assert answer is not None
+    localized = resolver.localize(answer, "en")
+    assert localized.text == "Session Future of AI in Events starts at 11:00."
+    assert localized.evidence_ids == answer.evidence_ids
+    conn.close()
+
+
 class EmptyRetriever:
     async def retrieve(self, query):
         return EvidencePack(query, ())
@@ -85,6 +102,29 @@ async def test_one_active_session_resolves_exact_follow_up_without_llm(tmp_path:
     assert second.route is AnswerRoute.EXACT
     assert "11:00" in second.text
     assert llm.calls == 0
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_exact_answer_uses_selected_english_language(tmp_path: Path) -> None:
+    db_path = build_demo_db(
+        REPOSITORY_ROOT / "fixtures" / "phase3" / "demo_event.yaml",
+        tmp_path / "demo.sqlite3",
+    )
+    conn = connect_event_db(db_path)
+    orchestrator = GroundedOrchestrator(
+        StructuredResolver(EventRepository(conn), event_id="demo-2026"),
+        EmptyRetriever(),
+    )
+
+    result = await orchestrator.answer(
+        "When is Future of AI in Events?",
+        delivery_confirmed=True,
+    )
+
+    assert result.route is AnswerRoute.EXACT
+    assert result.language == "en"
+    assert result.text == "Session Future of AI in Events starts at 11:00."
     conn.close()
 
 

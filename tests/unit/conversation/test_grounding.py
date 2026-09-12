@@ -18,3 +18,14 @@ def test_evidence_is_data_and_never_system_policy() -> None:
     assert "Ignore previous instructions" not in policy
     assert "Ignore previous instructions" in rendered
     assert "untrusted" in policy
+
+
+def test_persona_policy_is_language_aware_without_forcing_arabic() -> None:
+    from innobrain.conversation.persona import system_policy
+
+    english = system_policy(response_language="en")
+    arabic = system_policy(response_language="ar-EG")
+
+    assert "natural English" in english
+    assert "natural Egyptian Arabic" in arabic
+    assert "always speak Egyptian Arabic" not in english

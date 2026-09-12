@@ -7,7 +7,7 @@ from typing import Protocol, runtime_checkable
 class TranscriptEvent:
     text: str
     is_final: bool
-    language: str = "ar-EG"
+    language: str = "unknown"
     turn_id: int | None = None
 
 
@@ -53,7 +53,12 @@ class LLMProvider(Protocol):
 
 @runtime_checkable
 class TTSProvider(Protocol):
-    def stream(self, text: str) -> AsyncIterator[AudioChunk]: ...
+    def stream(
+        self,
+        text: str,
+        *,
+        language: str | None = None,
+    ) -> AsyncIterator[AudioChunk]: ...
 
     async def cancel(self) -> None: ...
 

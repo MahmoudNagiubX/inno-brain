@@ -29,6 +29,7 @@ class FakeDeepgramConnection:
                 "is_final": True,
                 "speech_final": False,
                 "channel": {"alternatives": [{"transcript": "أهلاً"}]},
+                "language": "ar-EG",
                 "turn_id": 1,
             }
         )
@@ -38,6 +39,7 @@ class FakeDeepgramConnection:
                 "is_final": True,
                 "speech_final": True,
                 "channel": {"alternatives": [{"transcript": "بيك"}]},
+                "language": "ar-EG",
                 "turn_id": 1,
             }
         )
@@ -63,7 +65,7 @@ async def test_deepgram_configures_nova3_arabic_raw_pcm_and_keeps_finalize_expli
 
     options = holder["connection"].options
     assert options["model"] == "nova-3"
-    assert options["language"] == "ar-EG"
+    assert options["language"] == "multi"
     assert options["encoding"] == "linear16"
     assert options["sample_rate"] == 16000
     assert options["channels"] == 1
@@ -102,6 +104,33 @@ async def test_deepgram_send_media_does_not_block_asyncio_loop():
 
     assert heartbeat_ran_before_send_finished is True
     assert connection.audio == [b"pcm"]
+    await provider.stop()
+
+
+@pytest.mark.asyncio
+async def test_deepgram_preserves_provider_english_language_metadata() -> None:
+    connection = FakeDeepgramConnection()
+    connection.send_finalize = lambda: None
+    provider = DeepgramSTTProvider(
+        connection_factory=lambda **_: connection,
+        final_timeout_seconds=0.2,
+    )
+    await provider.start()
+    await provider.begin_turn(3)
+    callback = next(iter(connection.callbacks.values()))
+    callback(
+        {
+            "type": "Results",
+            "is_final": True,
+            "speech_final": True,
+            "language": "en-US",
+            "turn_id": 3,
+            "channel": {"alternatives": [{"transcript": "Where is the stage?"}]},
+        }
+    )
+    final = await provider.final_text(3)
+
+    assert final.language == "en"
     await provider.stop()
 
 

@@ -5,12 +5,12 @@ stt:
   fallback:
     - deepgram
   speechmatics:
-    language: ar
+    language: auto
     endpointing: external
     api_key_env: SPEECHMATICS_API_KEY
   deepgram:
     model: nova-3
-    language: ar-EG
+    language: multi
     api_key_env: DEEPGRAM_API_KEY
     keyterm_prompting: true
 
@@ -26,6 +26,8 @@ tts:
   azure:
     locale: ar-EG
     voice: ar-EG-ShakirNeural
+    english_locale: en-US
+    english_voice: en-US-JennyNeural
     sample_rate_hz: 16000
     key_env: AZURE_SPEECH_KEY
     region_env: AZURE_SPEECH_REGION

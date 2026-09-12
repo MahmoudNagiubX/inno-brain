@@ -209,6 +209,7 @@ async def test_production_application_event_switch_and_quiescent_guard(tmp_path:
     assert old_context.record.event_id == "event-alpha"
     assert app.knowledge.snapshot().event_id == "event-alpha"
     app.memory.add_turn("user", "remembered alpha", ["ALPHA-COMPASS"])
+    app.memory.set_language_style("en")
     assert len(app.memory.recent_turns()) == 1
 
     # 3. Activation while the runtime is non-quiescent raises EventActivationBusy
@@ -227,6 +228,7 @@ async def test_production_application_event_switch_and_quiescent_guard(tmp_path:
     assert app.event_context.record.event_id == "event-beta"
     assert app.knowledge.snapshot().event_id == "event-beta"
     assert app.memory.recent_turns() == ()
+    assert app.memory.language_style == "ar-EG"
 
     # 5. Alpha facts are absent; Beta facts work
     alpha_absent = await app.orchestrator.answer("ALPHA COMPASS")

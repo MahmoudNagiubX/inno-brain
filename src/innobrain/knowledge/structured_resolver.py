@@ -1,6 +1,6 @@
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 
@@ -28,8 +28,10 @@ def _has_any(query: str, terms: tuple[str, ...]) -> bool:
     return any(term in query for term in terms)
 
 
-def _format_time(value: str) -> str:
+def _format_time(value: str, language: str = "ar-EG") -> str:
     time = datetime.fromisoformat(value).strftime("%H:%M")
+    if language.startswith("en"):
+        return time
     hour = int(time[:2])
     period = "صباحًا" if hour < 12 else "مساءً"
     return f"{time} {period}"
@@ -56,7 +58,10 @@ class StructuredResolver:
             ("\u0628\u0648\u062b", "booth"),
         ):
             booth = self._one_active_row("booths", active_entities)
-        if booth is not None and _has_any(normalized_query, ("بوث", "booth", "فين", "مكان")):
+        if booth is not None and _has_any(
+            normalized_query,
+            ("بوث", "booth", "فين", "مكان", "where", "located"),
+        ):
             location = self.repository.get_location(booth["location_id"])
             if location is None:
                 return None
@@ -78,6 +83,9 @@ class StructuredResolver:
                 "\u0627\u0645\u062a\u0649",
                 "\u0645\u062a\u0649",
                 "\u0648\u0642\u062a",
+                "when",
+                "time",
+                "starts",
             ),
         )
         asks_location = _has_any(
@@ -87,6 +95,8 @@ class StructuredResolver:
                 "\u0645\u0643\u0627\u0646",
                 "location",
                 "\u0642\u0627\u0639\u0629",
+                "where",
+                "located",
             ),
         )
         if session is None and (asks_time or asks_location):
@@ -99,12 +109,33 @@ class StructuredResolver:
                 "\u0628\u064a\u062a\u0643\u0644\u0645",
                 "\u0628\u062a\u062a\u0643\u0644\u0645",
                 "session",
+                "sessions",
+                "speaks",
+                "speaking",
+                "talks",
+                "when",
+                "where",
             ),
         ):
             speaker = self._one_active_row("speakers", active_entities)
         if speaker is not None and _has_any(
             normalized_query,
-            ("بيتكلم", "بتتكلم", "بيتكل", "جلس", "session", "امتى", "متى", "فين"),
+            (
+                "بيتكلم",
+                "بتتكلم",
+                "بيتكل",
+                "جلس",
+                "session",
+                "sessions",
+                "speaks",
+                "speaking",
+                "talks",
+                "when",
+                "where",
+                "امتى",
+                "متى",
+                "فين",
+            ),
         ):
             sessions = self.repository.sessions_for_speaker(speaker["id"])
             if not sessions:
@@ -133,14 +164,30 @@ class StructuredResolver:
             location = self.repository.get_location(session["location_id"])
             if location is None:
                 return None
-            if _has_any(normalized_query, ("فين", "مكان", "location", "قاعة")):
+            if _has_any(
+                normalized_query,
+                ("فين", "مكان", "location", "قاعة", "where", "located"),
+            ):
                 return ExactAnswer(
                     intent=ExactIntent.SESSION_LOCATION,
                     text=f"Session {session['title']} موجودة في {location['name']}.",
                     evidence_ids=(f"session:{session['id']}", f"location:{location['id']}"),
                     entities=(str(session["id"]), str(location["id"])),
                 )
-            if _has_any(normalized_query, ("الساعة", "ميعاد", "معاد", "امتى", "متى", "وقت")):
+            if _has_any(
+                normalized_query,
+                (
+                    "الساعة",
+                    "ميعاد",
+                    "معاد",
+                    "امتى",
+                    "متى",
+                    "وقت",
+                    "when",
+                    "time",
+                    "starts",
+                ),
+            ):
                 return ExactAnswer(
                     intent=ExactIntent.SESSION_TIME,
                     text=f"Session {session['title']} الساعة {_format_time(session['starts_at'])}.",
@@ -149,7 +196,8 @@ class StructuredResolver:
                 )
 
         if _has_any(normalized_query, ("الايفنت", "الحدث", "event")) and _has_any(
-            normalized_query, ("امتى", "متى", "تاريخ", "date", "يوم")
+            normalized_query,
+            ("امتى", "متى", "تاريخ", "date", "يوم", "when"),
         ):
             event = self.repository.get_event_meta(self.event_id)
             if event is None:
@@ -161,6 +209,73 @@ class StructuredResolver:
                 entities=(str(event["id"]),),
             )
         return None
+
+    def localize(self, answer: ExactAnswer, language: str) -> ExactAnswer:
+        """Render the same structured fact in the requested response language."""
+        if not language.startswith("en"):
+            return answer
+
+        if answer.intent is ExactIntent.EVENT_DATE:
+            event = self.repository.get_event_meta(self.event_id)
+            if event is not None:
+                return replace(
+                    answer,
+                    text=f"The event is on {event['event_date']} at {event['venue_name']}.",
+                )
+
+        if answer.intent is ExactIntent.BOOTH_LOCATION and len(answer.entities) >= 2:
+            booth = self._row("booths", answer.entities[0])
+            location = self.repository.get_location(answer.entities[1])
+            if booth is not None and location is not None:
+                return replace(
+                    answer,
+                    text=f"{booth['name']} is located at {location['name']}.",
+                )
+
+        if answer.intent in {ExactIntent.SESSION_LOCATION, ExactIntent.SESSION_TIME}:
+            session = self._row("sessions", answer.entities[0]) if answer.entities else None
+            if session is not None:
+                if answer.intent is ExactIntent.SESSION_LOCATION:
+                    location = self.repository.get_location(session["location_id"])
+                    if location is not None:
+                        return replace(
+                            answer,
+                            text=f"Session {session['title']} is located at {location['name']}.",
+                        )
+                return replace(
+                    answer,
+                    text=(
+                        f"Session {session['title']} starts at "
+                        f"{_format_time(session['starts_at'], 'en')}."
+                    ),
+                )
+
+        if answer.intent is ExactIntent.SPEAKER_SESSIONS and answer.entities:
+            speaker = self._row("speakers", answer.entities[0])
+            if speaker is not None:
+                sessions = self.repository.sessions_for_speaker(speaker["id"])
+                parts: list[str] = []
+                for session in sessions:
+                    location = self.repository.get_location(session["location_id"])
+                    if location is None:
+                        return answer
+                    parts.append(
+                        f"{session['title']} at {_format_time(session['starts_at'], 'en')} "
+                        f"at {location['name']}"
+                    )
+                if parts:
+                    return replace(
+                        answer,
+                        text=f"{speaker['name']} is speaking at " + "; ".join(parts) + ".",
+                    )
+
+        return answer
+
+    def _row(self, table: str, row_id: str):
+        return self.repository.conn.execute(
+            f"SELECT * FROM {table} WHERE event_id = ? AND id = ?",
+            (self.event_id, row_id),
+        ).fetchone()
 
     def _unique_entity(self, table: str, column: str, normalized_query: str):
         rows = self.repository.conn.execute(

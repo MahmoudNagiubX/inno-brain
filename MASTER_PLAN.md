@@ -1,14 +1,14 @@
 # InnoBrain — Master Architecture & Implementation Plan
 
 > **Document role:** Single source of truth for the InnoBrain Event Robot AI/Voice subsystem
-> **Version:** 1.19
-> **Date:** 2026-09-03
-> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`; real provider/API voice not started
+> **Version:** 1.20
+> **Date:** 2026-09-12
+> **Status:** Phase 1 complete; Phase 2 implementation complete with live validation deferred; Phase 3 implementation complete with validation deferred; Phase 4 `PHASE_4_COMPLETE`; Gate 5A audit complete; Gate 5B.1 `READY_FOR_PHASE5_VOICE`; Gate 5C.0 `GATE_5C0_IMPLEMENTATION_COMPLETE_WAKE_DATA_PENDING`; Gate 5C.1A structural P1 remediation complete with physical/live validation pending
 > **Current development platform:** Windows laptop (primary development and testing environment)
-> **Current development audio:** Laptop microphone + laptop speakers/headphones
+> **Current development audio:** Anker PowerConf S330 A3308 microphone + speaker on Windows
 > **Target deployment hardware:** Raspberry Pi 5 — 8 GB RAM
 > **Target production audio hardware:** Anker PowerConf S330 Speakerphone — Model A3308
-> **Language target:** Egyptian Arabic FIRST. English is secondary. Arabic/English code-switching is supported only where it improves Egyptian usability.
+> **Language target:** Egyptian Arabic FIRST, with natural English conversation and Arabic/English code-switching required before voice-product completion.
 > **Product target:** A low-latency, interruptible, context-aware Egyptian-Arabic event robot that feels conversational rather than like a voice FAQ kiosk.
 
 ---
@@ -49,9 +49,10 @@ The MVP priority is:
 
 1. **Natural Egyptian Arabic conversation.**
 2. Egyptian Arabic with natural English technical/proper nouns when Egyptians commonly use them.
-3. English conversation is secondary and must not delay or complicate the Egyptian-Arabic MVP.
+3. Natural English conversation is required before the voice product is complete.
+4. Arabic/English code-switching across and within turns is required before the voice product is complete.
 
-All STT, TTS, turn-taking, persona, RAG and evaluation choices should therefore optimize Egyptian Arabic first.
+All STT, TTS, turn-taking, persona, RAG and evaluation choices should therefore optimize Egyptian Arabic first while preserving explicit English and mixed-language contracts.
 
 
 ---
@@ -209,11 +210,10 @@ The project is currently developed and tested on the developer's Windows laptop.
 Current development reality:
 
 - The Raspberry Pi is not currently available to the primary developer.
-- The Anker PowerConf S330 is not currently used by the primary developer.
-- Day-to-day development, automated tests and interactive audio tests run on the laptop.
-- The laptop's built-in/default microphone is the current development microphone.
-- The laptop's normal output device is the current development speaker/output.
-- Raspberry Pi deployment and production-hardware validation may be performed later by another team member.
+- The Anker PowerConf S330 A3308 is physically available and is the primary Windows development microphone and speaker.
+- Day-to-day development and automated tests run on the Windows laptop; this Gate 5C.1A structural pass does not open physical streams.
+- S330 input and output are selected by configured name/host-API/direction/channel/format properties and runtime capability validation; a Windows numeric device index is never persisted or hardcoded.
+- Raspberry Pi deployment and production-hardware validation remain later gates.
 
 This changes the validation workflow, but NOT the product architecture.
 
@@ -234,8 +234,8 @@ Rules:
 - Core STT/LLM/TTS/RAG/conversation code must not depend directly on Windows device IDs.
 - Core code must not depend directly on Raspberry Pi ALSA card IDs.
 - Audio device selection must be configuration-driven.
-- Laptop testing is sufficient for current development phases unless a task is specifically marked as deployment validation.
-- Raspberry Pi/S330-specific validation is deferred to the deployment/hardware-validation track.
+- Laptop structural testing is sufficient for this gate, while S330 physical acoustic/full-duplex validation is the next controlled local gate.
+- Raspberry Pi-specific validation is deferred to the deployment/hardware-validation track.
 - No development phase may be marked blocked merely because the Pi or S330 is unavailable.
 - Production readiness still requires later validation on the real Raspberry Pi 5 + S330 before event deployment.
 
@@ -1298,6 +1298,7 @@ Example:
 stt:
   primary: deepgram
   fallback: metro_local
+  language_mode: multilingual-auto
 
 llm:
   primary: groq
@@ -1306,7 +1307,10 @@ llm:
 
 tts:
   primary: azure
-  voice: ar-EG-ShakirNeural
+  arabic_locale: ar-EG
+  arabic_voice: ar-EG-ShakirNeural
+  english_locale: en-US
+  english_voice: en-US-JennyNeural
 
 embedding:
   primary: multilingual-e5-small
@@ -2299,7 +2303,7 @@ Primary:
 
 ```text
 Speechmatics Voice / Realtime
-language: ar
+language: auto (provider-detected; Arabic-first response policy)
 endpointing mode: EXTERNAL
 ```
 
@@ -2315,8 +2319,8 @@ Secondary/fallback:
 
 ```text
 Deepgram Nova-3
-default dialect profile: ar-EG
-optional code-switch profile: multilingual
+language profile: multi
+Arabic-first response policy with mixed-language metadata preserved
 ```
 
 Reason:
@@ -2327,6 +2331,10 @@ Reason:
 - independent-provider redundancy.
 
 STT provider selection is configuration-driven.
+
+The Gate 5C.1A structural contract requires Arabic, English, and mixed-language
+metadata to survive the adapter boundary. Live provider accuracy and acoustic
+code-switch acceptance remain deferred to later gates.
 
 The fallback router must skip a provider whose credential is absent rather than crashing application startup.
 
@@ -2365,6 +2373,8 @@ Primary:
 provider: Azure Speech
 locale: ar-EG
 voice: ar-EG-ShakirNeural
+english locale: en-US
+english voice: en-US-JennyNeural
 gender: male
 sample rate: 16000 Hz
 ```
@@ -2376,6 +2386,11 @@ sample rate: 16000 Hz
 Do not silently switch to a female voice.
 
 If Azure TTS is unavailable, the application must preserve the text response and return a typed text-only/degraded output instead of crashing.
+
+Voice selection is per response/turn, not per English technical noun inside a
+mixed sentence. The first structural implementation uses one dominant voice
+for each response and does not assume arbitrary in-stream Azure voice switching
+is natural.
 
 A later TTS bake-off may compare another male Egyptian-quality voice, but the architecture must not depend on one vendor.
 
@@ -3626,6 +3641,44 @@ provider, or Raspberry Pi/S330 acceptance.
 - No real Speechmatics, Deepgram, Groq, Azure, microphone, Pi/S330, Robot,
   Screen, ROS, or API setup work was performed. Phase 6 remains not started.
 
+#### Gate 5C.1A — Structural Core Voice, Multilingual and S330 Routing
+
+Gate 5C.1A is the structural remediation gate before any real provider voice
+or physical S330 stream. Its locked decisions are:
+
+1. The Anker PowerConf S330 A3308 is physically available and is the primary
+   Windows development microphone and speaker. Capture and playback resolve
+   independently from property/capability descriptors; numeric Windows device
+   indexes are runtime-only and never persisted or hardcoded.
+2. The same S330 input/output path is preferred so the device's hardware DSP
+   and echo-cancellation reference can be evaluated as one audio path.
+   Software AEC and noise suppression remain disabled by default.
+3. Wake architecture remains in place. An explicit `development_bypass` feeds
+   the existing VAD/Smart Turn/STT path for structural development tests, is
+   observable as `BYPASSED`, and is rejected in production. Sleeping in normal
+   wake-required mode remains local-only and does not send PCM to cloud STT.
+4. Egyptian Arabic remains first priority. English conversation and
+   Arabic/English code-switching are completion gates. Per-turn language
+   metadata, response policy, exact-fact localization, bounded language memory,
+   and configuration-driven Arabic/English TTS voices are structural contracts;
+   fake-provider tests do not constitute acoustic or live-provider acceptance.
+5. STT turn ownership begins before the first application-turn PCM is sent.
+   A bounded pre-turn buffer is replayed exactly once after `begin_turn`; turn
+   cleanup and cancellation discard stale audio without replaying it into a
+   later turn.
+6. LLM output streams through safe sentence chunks into cancellable TTS and
+   playback. Memory commits only after the final spoken response finishes
+   playback; interruption cannot commit unplayed text.
+7. The gate order is: structural Core Voice; S330 physical local validation;
+   real Arabic provider voice; real English/code-switch validation; hardening;
+   Heyino training/calibration; Raspberry Pi deployment; later Robot/Screen/ROS.
+   Heyino dataset collection/training/calibration is explicitly deferred until
+   after core voice and multilingual validation.
+
+Gate 5C.1A does not claim multilingual acoustic acceptance, live provider
+quality, full-duplex S330 acoustic/AEC acceptance, or Raspberry Pi readiness.
+It also does not authorize Phase 6.
+
 Prove the complete controlled conversation path:
 
 ```text
@@ -4497,3 +4550,35 @@ Pepper realtime AI:
   authorized or performed.
 
 **End of Master Plan v1.19**
+
+---
+
+## v1.20 - 2026-09-12
+
+- Recorded Gate 5C.1A as the structural P1 remediation gate on
+  `phase/5c1-core-voice-multilingual-s330`, with no live provider calls,
+  physical audio streaming, Heyino training, Pi work, or Phase 6 work.
+- Made the physically available Anker PowerConf S330 A3308 the primary Windows
+  development microphone and speaker. Added property/capability-based input
+  and output descriptors, runtime resolution, deliberate same-device routing,
+  and an explicit default-off software AEC/NS policy; numeric Windows indexes
+  are never persisted or hardcoded.
+- Added an explicit development-only wake bypass with visible `BYPASSED`
+  health/CLI state. Normal sleeping wake-required mode remains local-only and
+  production rejects the bypass.
+- Made provider construction capability-aware, preserving useful exact/text
+  paths when Groq or Azure is unavailable and reporting selected STT,
+  fallback, LLM, and TTS capabilities without secrets.
+- Added per-turn Arabic/English/mixed language policy, provider metadata
+  preservation, exact-fact English localization, bounded language memory,
+  configurable Arabic/English Azure voices, and incremental LLM sentence
+  streaming into cancellable TTS/playback.
+- Added bounded pre-turn PCM ownership buffering so `begin_turn` precedes
+  first STT audio, with no duplicate replay and cancellation-safe cleanup.
+- Reordered the next gates as structural Core Voice, S330 physical local
+  validation, real Arabic provider voice, real English/code-switch validation,
+  hardening, Heyino training/calibration, Pi deployment, then Robot/Screen/ROS.
+  Structural tests do not claim acoustic, live-provider, or physical
+  multilingual acceptance.
+
+**End of Master Plan v1.20**

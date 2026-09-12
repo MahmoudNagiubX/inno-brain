@@ -124,14 +124,14 @@ class RuntimeConfig(StrictModel):
 
 
 class SpeechmaticsProviderConfig(StrictModel):
-    language: str = "ar"
+    language: str = "auto"
     endpointing: Literal["external"] = "external"
     api_key_env: str = "SPEECHMATICS_API_KEY"
 
 
 class DeepgramProviderConfig(StrictModel):
     model: str = "nova-3"
-    language: str = "ar-EG"
+    language: str = "multi"
     api_key_env: str = "DEEPGRAM_API_KEY"
     keyterm_prompting: bool = True
 
@@ -157,6 +157,8 @@ class LLMProviderConfig(StrictModel):
 class AzureTTSProviderConfig(StrictModel):
     locale: str = "ar-EG"
     voice: str = "ar-EG-ShakirNeural"
+    english_locale: str = "en-US"
+    english_voice: str = "en-US-JennyNeural"
     sample_rate_hz: int = Field(default=16000, ge=8000, le=48000)
     key_env: str = "AZURE_SPEECH_KEY"
     region_env: str = "AZURE_SPEECH_REGION"

@@ -202,6 +202,12 @@ class RealtimeTurnRuntime:
                 routed = result
             if not routed:
                 continue
+            frame = InputAudioRawFrame(
+                audio=routed,
+                sample_rate=self.config.audio.target_sample_rate_hz,
+                num_channels=1,
+            )
+            await self.worker.queue_frames([frame])
             if self._on_audio_chunk_callback is not None:
                 try:
                     result = self._on_audio_chunk_callback(routed)
@@ -212,12 +218,6 @@ class RealtimeTurnRuntime:
                 except BaseException as exc:
                     self.audio_observer_error = exc
                     raise
-            frame = InputAudioRawFrame(
-                audio=routed,
-                sample_rate=self.config.audio.target_sample_rate_hz,
-                num_channels=1,
-            )
-            await self.worker.queue_frames([frame])
 
     async def _cancel_feed_task(self) -> None:
         task = self._feed_task

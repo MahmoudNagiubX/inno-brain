@@ -138,8 +138,10 @@ class ProviderBundle:
         stt_name = None
         fallback_name = None
         if self.stt is not None:
-            stt_name = getattr(self.stt.primary, "name", None)
-            fallback_name = getattr(self.stt.fallback, "name", None)
+            primary = getattr(self.stt, "primary", self.stt)
+            fallback = getattr(self.stt, "fallback", None)
+            stt_name = getattr(primary, "name", None)
+            fallback_name = getattr(fallback, "name", None)
         return ProviderHealth(
             selected_stt=stt_name,
             fallback_stt=fallback_name,
@@ -199,7 +201,19 @@ def build_provider_bundle(
 
     stt_instances: list[STTProvider] = []
     for name in configured_stt:
-        kwargs = {"api_key": stt_secrets[name]}
+        if name == "speechmatics":
+            settings = config.providers.stt.speechmatics
+            kwargs = {
+                "api_key": stt_secrets[name],
+                "language": settings.language,
+            }
+        else:
+            settings = config.providers.stt.deepgram
+            kwargs = {
+                "api_key": stt_secrets[name],
+                "model": settings.model,
+                "language": settings.language,
+            }
         stt_instances.append(cast(STTProvider, factories[name](**kwargs)))
 
     stt: FailoverSTTProvider | None = None
@@ -228,6 +242,10 @@ def build_provider_bundle(
             factories[config.providers.tts.primary](
                 api_key=env[azure.key_env],
                 region=env[azure.region_env],
+                locale=azure.locale,
+                voice=azure.voice,
+                english_locale=azure.english_locale,
+                english_voice=azure.english_voice,
                 sample_rate_hz=azure.sample_rate_hz,
             ),
         )

@@ -9,12 +9,16 @@ from innobrain.providers.errors import ProviderTimeout
 from innobrain.providers.speechmatics_stt import SpeechmaticsSTTProvider
 
 
-def _make_segment_message(text: str, is_partial: bool = False) -> SegmentMessage:
+def _make_segment_message(
+    text: str,
+    is_partial: bool = False,
+    language: str = "ar",
+) -> SegmentMessage:
     seg = SegmentMessageSegment(
         speaker_id="S1",
         is_active=True,
         timestamp="0.0",
-        language="ar",
+        language=language,
         text=text,
         annotation=[],
         metadata=MessageTimeMetadata(start_time=0.0, end_time=1.0),
@@ -87,7 +91,7 @@ async def test_speechmatics_uses_ar_external_endpointing_and_injected_pcm_client
     final = await provider.final_text(1)
     await provider.stop()
 
-    assert provider.config.language == "ar"
+    assert provider.config.language == "auto"
     assert provider.config.end_of_utterance_mode.value == "external"
     assert provider.config.sample_rate == 16000
     assert partial is not None
@@ -99,6 +103,23 @@ async def test_speechmatics_uses_ar_external_endpointing_and_injected_pcm_client
     assert final.language == "ar-EG"
     assert client.audio == [b"pcm"]
     assert client.finalized is True
+
+
+@pytest.mark.asyncio
+async def test_speechmatics_preserves_provider_english_language_metadata() -> None:
+    client = FakeSpeechmaticsClient()
+    client.finalize = lambda end_of_turn=False: None
+    provider = SpeechmaticsSTTProvider(client=client, final_timeout_seconds=0.2)
+
+    await provider.start()
+    await provider.begin_turn(4)
+    client.callbacks["AddSegment"](_make_segment_message("Hello there", language="en"))
+    client.callbacks["EndOfTurn"](_make_eot_message(0))
+
+    final = await provider.final_text(4)
+
+    assert final.language == "en"
+    await provider.stop()
 
 
 @pytest.mark.asyncio

@@ -121,3 +121,58 @@ def test_provider_factory_missing_optional_providers_does_not_block_stt() -> Non
     assert bundle.health.stt_available is True
     assert bundle.health.llm_available is False
     assert bundle.health.tts_available is False
+
+
+def test_provider_factory_passes_multilingual_and_voice_configuration_to_adapters() -> None:
+    config = load_all_configs(Path.cwd())
+    stt_config = config.providers.stt.model_copy(
+        update={
+            "speechmatics": config.providers.stt.speechmatics.model_copy(
+                update={"language": "auto-en-ar"}
+            ),
+            "deepgram": config.providers.stt.deepgram.model_copy(
+                update={"model": "nova-test", "language": "multi-test"}
+            ),
+        }
+    )
+    tts_config = config.providers.tts.model_copy(
+        update={
+            "azure": config.providers.tts.azure.model_copy(
+                update={
+                    "locale": "ar-EG",
+                    "voice": "ar-EG-TestNeural",
+                    "english_locale": "en-GB",
+                    "english_voice": "en-GB-TestNeural",
+                }
+            )
+        }
+    )
+    config = config.model_copy(
+        update={
+            "providers": config.providers.model_copy(
+                update={"stt": stt_config, "tts": tts_config}
+            )
+        }
+    )
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    build_provider_bundle(
+        config,
+        environment={
+            "SPEECHMATICS_API_KEY": "speech",
+            "DEEPGRAM_API_KEY": "deep",
+            "AZURE_SPEECH_KEY": "azure",
+            "AZURE_SPEECH_REGION": "region",
+        },
+        constructors=_constructors(calls),
+    )
+
+    by_name = {name: kwargs for name, kwargs in calls}
+    assert by_name["speechmatics"]["language"] == "auto-en-ar"
+    assert by_name["deepgram"] == {
+        "api_key": "deep",
+        "model": "nova-test",
+        "language": "multi-test",
+    }
+    assert by_name["azure"]["english_locale"] == "en-GB"
+    assert by_name["azure"]["english_voice"] == "en-GB-TestNeural"
