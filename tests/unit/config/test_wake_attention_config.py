@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from innobrain.config import load_all_configs
 from innobrain.config.models import (
     AttentionRuntimeConfig,
+    RuntimeConfig,
     WakeCandidateMetadata,
     WakeWordRuntimeConfig,
 )
@@ -20,6 +21,7 @@ def test_wake_and_attention_models_defaults() -> None:
     assert "H-E-Y-I-N-N-O" in wake_cfg.phrase
     assert wake_cfg.canonical_label == "heyino"
     assert wake_cfg.engine_type == "openwakeword"
+    assert wake_cfg.operating_mode == "wake_required"
     assert wake_cfg.model_path is None
     assert wake_cfg.threshold == 0.5
     assert wake_cfg.cooldown_seconds == 1.5
@@ -58,6 +60,7 @@ def test_runtime_yaml_loads_matching_wake_and_attention_defaults() -> None:
     assert attention.max_session_duration_seconds == 120.0
     assert attention.rejected_background_limit == 1
     assert attention.wake_cooldown_seconds == 1.5
+    assert wake.operating_mode == "development_bypass"
 
     # Realtime VAD and Smart Turn settings are preserved unmodified
     assert configs.runtime.realtime.vad.confidence == 0.7
@@ -91,6 +94,23 @@ def test_wake_and_attention_strict_validation() -> None:
 
     with pytest.raises(ValidationError):
         WakeWordRuntimeConfig(engine_type="unknown")
+
+    with pytest.raises(ValidationError, match="development_bypass"):
+        RuntimeConfig.model_validate(
+            {
+                "app_name": "InnoBrain",
+                "environment": "production",
+                "primary_locale": "ar-EG",
+                "secondary_locale": "en",
+                "development_platform": "laptop",
+                "audio": {},
+                "realtime": {
+                    "vad": {},
+                    "smart_turn": {},
+                },
+                "wake_word": {"operating_mode": "development_bypass"},
+            }
+        )
 
     # Negative follow-up window forbidden
     with pytest.raises(ValidationError):

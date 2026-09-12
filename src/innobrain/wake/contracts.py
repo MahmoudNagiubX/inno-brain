@@ -1,8 +1,25 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 CANONICAL_WAKE_LABEL: str = "heyino"
 SAMPLE_RATE_HZ: int = 16000
+
+
+class WakeOperatingMode(StrEnum):
+    """Wake subsystem operating mode."""
+
+    WAKE_REQUIRED = "wake_required"
+    DEVELOPMENT_BYPASS = "development_bypass"
+
+
+class WakeStatus(StrEnum):
+    """Safe, machine-readable status distinguishing wake and attention states."""
+
+    READY = "ready"
+    DATA_PENDING = "data_pending"
+    BYPASSED = "bypassed"
+    DEGRADED = "degraded"
 
 
 class WakeEngineError(Exception):
@@ -57,6 +74,7 @@ class WakeEngineConfig:
     sample_rate_hz: int = SAMPLE_RATE_HZ
     frame_length_samples: int | None = None
     access_key: str | None = None
+    mode: str = WakeOperatingMode.WAKE_REQUIRED.value
 
 
 @runtime_checkable

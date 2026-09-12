@@ -23,7 +23,7 @@ def test_offline_wake_check_reports_local_status_without_network_or_stream() -> 
     result = offline_wake_check(REPOSITORY_ROOT)
 
     assert "status" in result
-    assert result["status"] in ("data_pending", "ready")
+    assert result["status"] in ("data_pending", "ready", "bypassed")
     assert "phrase" in result
     assert "Heyino" in str(result["phrase"])
     assert result["canonical_label"] == "heyino"

@@ -217,7 +217,7 @@ class AttentionController:
         Guarantees that once speech starts, the session does not close mid-utterance.
         """
         t = self._clock() if now is None else now
-        if self._state == AttentionState.SLEEPING:
+        if self._state == AttentionState.SLEEPING and not self._development_bypass:
             return False
 
         # If in follow-up window, verify deadline hasn't elapsed prior to speech start
@@ -237,6 +237,11 @@ class AttentionController:
 
         self._is_utterance_in_progress = True
         return True
+
+    @property
+    def _development_bypass(self) -> bool:
+        """Allow turn ownership while the explicit development bypass is active."""
+        return bool(getattr(self._router, "is_development_bypass", False))
 
     def on_utterance_end(
         self,

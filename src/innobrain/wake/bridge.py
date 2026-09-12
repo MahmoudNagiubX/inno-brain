@@ -61,6 +61,9 @@ class WakeAttentionBridge:
             )
             return output.downstream_pcm
 
+        if self.router.is_development_bypass:
+            return output.downstream_pcm
+
         if self.attention.is_engaged:
             # In ENGAGED or FOLLOWUP_WINDOW: stream directly downstream
             return output.downstream_pcm

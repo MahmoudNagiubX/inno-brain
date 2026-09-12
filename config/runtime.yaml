@@ -64,6 +64,7 @@ events:
 
 wake_word:
   enabled: true
+  operating_mode: development_bypass
   phrase: "Heyino/H-E-Y-I-N-N-O"
   canonical_label: heyino
   engine_type: openwakeword

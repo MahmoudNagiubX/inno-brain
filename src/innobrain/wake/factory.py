@@ -10,6 +10,7 @@ from innobrain.wake.contracts import (
     WakeEngineConfig,
     WakeEngineHealth,
     WakeEngineInitializationError,
+    WakeOperatingMode,
     WakeWordEngine,
 )
 from innobrain.wake.router import WakeAudioRouter
@@ -105,6 +106,7 @@ def build_wake_engine(
             cooldown_seconds=config.cooldown_seconds,
             allowed_variants=(config.canonical_label,),
             frame_length_samples=frame_length,
+            mode=config.operating_mode,
         )
         try:
             from innobrain.wake.openwakeword_engine import OpenWakeWordEngine
@@ -150,6 +152,7 @@ def build_wake_engine(
             access_key=access_key,
             allowed_variants=(config.canonical_label,),
             frame_length_samples=frame_length,
+            mode=config.operating_mode,
         )
         try:
             from innobrain.wake.porcupine_engine import PorcupineWakeWordEngine
@@ -187,6 +190,7 @@ def build_wake_router(
         engine=wake_engine,
         preroll_ms=config.preroll_ms,
         cooldown_seconds=config.cooldown_seconds,
+        operating_mode=WakeOperatingMode(config.operating_mode),
     )
 
 

@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from innobrain.audio.models import AudioDeviceDescriptor
 
@@ -68,6 +68,7 @@ class WakeCandidateMetadata(StrictModel):
 
 class WakeWordRuntimeConfig(StrictModel):
     enabled: bool = True
+    operating_mode: Literal["wake_required", "development_bypass"] = "wake_required"
     phrase: Literal["Heyino/H-E-Y-I-N-N-O"] = "Heyino/H-E-Y-I-N-N-O"
     canonical_label: Literal["heyino"] = "heyino"
     engine_type: Literal["openwakeword", "porcupine", "fake"] = "openwakeword"
@@ -111,6 +112,15 @@ class RuntimeConfig(StrictModel):
     events: EventPackageRuntimeConfig = EventPackageRuntimeConfig()
     wake_word: WakeWordRuntimeConfig = WakeWordRuntimeConfig()
     attention: AttentionRuntimeConfig = AttentionRuntimeConfig()
+
+    @model_validator(mode="after")
+    def reject_production_bypass(self) -> "RuntimeConfig":
+        if (
+            self.environment == "production"
+            and self.wake_word.operating_mode == "development_bypass"
+        ):
+            raise ValueError("development_bypass wake mode is forbidden in production")
+        return self
 
 
 class SpeechmaticsProviderConfig(StrictModel):

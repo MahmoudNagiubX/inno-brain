@@ -18,6 +18,7 @@ from innobrain.event.registry import EventRegistry
 from innobrain.knowledge.embedding_assets import resolve_e5_assets
 from innobrain.providers.errors import MissingProviderCredential
 from innobrain.providers.registry import ProviderRegistry, build_provider_bundle
+from innobrain.wake.contracts import WakeOperatingMode, WakeStatus
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -85,6 +86,13 @@ def offline_wake_check(
 
     active_candidate = candidates.get(wake_cfg.engine_type, {})
     active_ready = active_candidate.get("ready", False)
+    operating_mode = WakeOperatingMode(wake_cfg.operating_mode)
+    if operating_mode is WakeOperatingMode.DEVELOPMENT_BYPASS:
+        status = WakeStatus.BYPASSED.value
+    elif active_ready:
+        status = WakeStatus.READY.value
+    else:
+        status = WakeStatus.DATA_PENDING.value
 
     attention_info = {
         "followup_window_ms": att_cfg.followup_window_ms,
@@ -95,7 +103,8 @@ def offline_wake_check(
     }
 
     return {
-        "status": "ready" if active_ready else "data_pending",
+        "status": status,
+        "operating_mode": operating_mode.value,
         "phrase": wake_cfg.phrase,
         "canonical_label": wake_cfg.canonical_label,
         "enabled": wake_cfg.enabled,

@@ -92,6 +92,18 @@ def _context(tmp_path: Path):
     return open_runtime_context(record)
 
 
+def _wake_required_config():
+    configs = load_all_configs(Path.cwd())
+    configs.runtime = configs.runtime.model_copy(
+        update={
+            "wake_word": configs.runtime.wake_word.model_copy(
+                update={"operating_mode": "wake_required"}
+            )
+        }
+    )
+    return configs
+
+
 def test_build_application_with_injected_wake_engine(tmp_path: Path) -> None:
     context = _context(tmp_path)
     engine = FakeEngine()
@@ -142,10 +154,11 @@ def test_build_application_degraded_when_wake_model_unconfigured(tmp_path: Path)
 
     assert isinstance(app, InnoBrainApplication)
     health = app.health
-    # Degraded status explicitly surfaced to watchdogs
-    assert health.ready is False
-    assert health.degraded is True
+    # Intentional bypass is ready for core voice while the nested engine remains data pending.
+    assert health.ready is True
+    assert health.degraded is False
     assert "DATA_PENDING" in str(health.wake)
+    assert health.wake["status"] == "bypassed"
 
     app.event_context.close()
 
@@ -155,7 +168,7 @@ async def test_application_lifecycle_and_reset_on_failure(tmp_path: Path) -> Non
     context = _context(tmp_path)
     engine = FakeEngine()
     app = build_application(
-        config=load_all_configs(Path.cwd()),
+        config=_wake_required_config(),
         provider_bundle=ProviderBundle(BoundaryProvider(), BoundaryProvider(), BoundaryProvider()),
         event_context=context,
         stream=BoundaryStream(),

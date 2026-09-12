@@ -8,6 +8,8 @@ from innobrain.wake.contracts import (
     WakeEngineHealth,
     WakeEngineInitializationError,
     WakeEngineProcessingError,
+    WakeOperatingMode,
+    WakeStatus,
     WakeWordEngine,
 )
 from innobrain.wake.factory import (
@@ -40,9 +42,11 @@ __all__ = [
     "WakeEngineHealth",
     "WakeEngineInitializationError",
     "WakeEngineProcessingError",
+    "WakeOperatingMode",
     "WakeRouterHealth",
     "WakeRouterMode",
     "WakeRouterOutput",
+    "WakeStatus",
     "WakeWordEngine",
     "build_wake_engine",
     "build_wake_router",

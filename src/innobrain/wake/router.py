@@ -8,6 +8,8 @@ from innobrain.wake.contracts import (
     WakeDetection,
     WakeEngineError,
     WakeEngineHealth,
+    WakeOperatingMode,
+    WakeStatus,
     WakeWordEngine,
 )
 from innobrain.wake.ring_buffer import PCMRingBuffer
@@ -48,6 +50,8 @@ class WakeRouterHealth:
     error_count: int
     recovery_count: int
     last_error: str | None
+    operating_mode: str = WakeOperatingMode.WAKE_REQUIRED.value
+    status: str = WakeStatus.READY.value
 
 
 class WakeAudioRouter:
@@ -76,10 +80,12 @@ class WakeAudioRouter:
         preroll_ms: int = 1500,
         cooldown_seconds: float = 1.5,
         auto_engage: bool = True,
+        operating_mode: WakeOperatingMode | str = WakeOperatingMode.WAKE_REQUIRED,
     ) -> None:
         self._engine = engine
         self._cooldown_seconds = cooldown_seconds
         self._auto_engage = auto_engage
+        self._operating_mode = WakeOperatingMode(operating_mode)
 
         self._mode = WakeRouterMode.SLEEPING
         self._playback_active = False
@@ -104,6 +110,14 @@ class WakeAudioRouter:
     @property
     def mode(self) -> WakeRouterMode:
         return self._mode
+
+    @property
+    def operating_mode(self) -> WakeOperatingMode:
+        return self._operating_mode
+
+    @property
+    def is_development_bypass(self) -> bool:
+        return self._operating_mode is WakeOperatingMode.DEVELOPMENT_BYPASS
 
     def set_mode(self, mode: WakeRouterMode | str) -> None:
         """Set the router mode (e.g. from attention controller).
@@ -132,9 +146,29 @@ class WakeAudioRouter:
     @property
     def health(self) -> WakeRouterHealth:
         eng_health = self._engine.health
-        is_degraded = self._degraded or eng_health.degraded
+        if self.is_development_bypass:
+            status = WakeStatus.BYPASSED
+            is_degraded = self._degraded
+            ready = self._ready
+        elif self._degraded:
+            status = WakeStatus.DEGRADED
+            is_degraded = True
+            ready = False
+        elif eng_health.degraded:
+            pending = (eng_health.last_error or "").upper().startswith("DATA_PENDING")
+            status = WakeStatus.DATA_PENDING if pending else WakeStatus.DEGRADED
+            is_degraded = not pending
+            ready = False
+        elif not eng_health.ready:
+            status = WakeStatus.DATA_PENDING
+            is_degraded = False
+            ready = False
+        else:
+            status = WakeStatus.READY
+            is_degraded = False
+            ready = self._ready
         return WakeRouterHealth(
-            ready=self._ready and eng_health.ready,
+            ready=ready,
             mode=self._mode.value,
             playback_active=self._playback_active,
             buffered_duration_ms=self._ring_buffer.duration_ms,
@@ -147,6 +181,8 @@ class WakeAudioRouter:
             error_count=self._error_count,
             recovery_count=self._recovery_count,
             last_error=self._last_error or eng_health.last_error,
+            operating_mode=self._operating_mode.value,
+            status=status.value,
         )
 
     def route_pcm(self, chunk: bytes) -> WakeRouterOutput:
@@ -161,6 +197,14 @@ class WakeAudioRouter:
 
         # Engaged / Follow-up: bypass wake engine, stream directly to downstream
         if self._mode in (WakeRouterMode.ENGAGED, WakeRouterMode.FOLLOWUP_WINDOW):
+            self._ring_buffer.write(chunk)
+            return WakeRouterOutput(
+                mode=self._mode,
+                detection=None,
+                downstream_pcm=chunk,
+            )
+
+        if self.is_development_bypass:
             self._ring_buffer.write(chunk)
             return WakeRouterOutput(
                 mode=self._mode,
