@@ -6,6 +6,7 @@ from typing import Any
 
 from innobrain.attention.contracts import AttentionHealth, AttentionPolicyConfig
 from innobrain.attention.controller import AttentionController
+from innobrain.audio import SoundDevicePCMStream, resolve_audio_devices
 from innobrain.config.models import ProjectConfigs
 from innobrain.conversation.knowledge_binding import ActiveKnowledgeBinding, KnowledgeSnapshot
 from innobrain.conversation.memory import SessionMemory
@@ -262,7 +263,30 @@ def build_application(
             llm_provider=providers.llm,
             knowledge=knowledge,
         )
-        playback_controller = playback or PCMStreamPlaybackController()
+        resolved_input, resolved_output = (None, None)
+        if (
+            (stream is None or playback is None)
+            and (
+                config.runtime.audio.input_device is not None
+                or config.runtime.audio.output_device is not None
+            )
+        ):
+            resolved_input, resolved_output = resolve_audio_devices(config.runtime.audio)
+
+        playback_controller = playback or PCMStreamPlaybackController(
+            device=resolved_output.device_index
+            if resolved_output is not None
+            else config.runtime.audio.output_device
+        )
+        audio_stream = stream
+        if audio_stream is None and resolved_input is not None:
+            audio_stream = SoundDevicePCMStream(
+                sample_rate_hz=config.runtime.audio.target_sample_rate_hz,
+                frame_ms=config.runtime.audio.frame_ms,
+                device=resolved_input.device_index,
+                queue_max_chunks=config.runtime.realtime.audio_queue_max_chunks,
+            )
+
         router = wake_router or build_wake_router(
             config.runtime.wake_word,
             engine=wake_engine,
@@ -291,7 +315,7 @@ def build_application(
             orchestrator=orchestrator,
             tts=providers.tts,
             playback=playback_controller,
-            stream=stream,
+            stream=audio_stream,
             audio_gate=bridge,
             attention=attention,
             wake_router=router,

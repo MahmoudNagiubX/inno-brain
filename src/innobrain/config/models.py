@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from innobrain.audio.models import AudioDeviceDescriptor
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -9,8 +11,8 @@ class StrictModel(BaseModel):
 
 class AudioRuntimeConfig(StrictModel):
     backend: Literal["default", "sounddevice"] = "sounddevice"
-    input_device: str | int | None = None
-    output_device: str | int | None = None
+    input_device: AudioDeviceDescriptor | str | int | None = None
+    output_device: AudioDeviceDescriptor | str | int | None = None
     target_sample_rate_hz: int = Field(default=16000, ge=8000, le=48000)
     channels: int = Field(default=1, ge=1, le=2)
     frame_ms: int = Field(default=20, ge=10, le=100)

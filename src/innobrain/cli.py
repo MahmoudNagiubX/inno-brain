@@ -6,7 +6,12 @@ import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from innobrain.audio.devices import get_default_device_indices, list_audio_devices
+from innobrain.audio.devices import (
+    diagnose_audio_devices,
+    get_default_device_indices,
+    list_audio_devices,
+    list_host_apis,
+)
 from innobrain.config.loader import load_all_configs, load_env_file
 from innobrain.event.activation import ActivationManager
 from innobrain.event.registry import EventRegistry
@@ -124,11 +129,24 @@ def offline_check(
     try:
         devices = list_audio_devices()
         defaults = get_default_device_indices()
+        host_apis = list_host_apis()
+        audio_diag = diagnose_audio_devices(
+            config.runtime.audio,
+            devices=devices,
+            host_apis=host_apis,
+            default_indices=defaults,
+        )
         audio = {
             "enumerated": True,
             "device_count": len(devices),
             "default_input": defaults[0],
             "default_output": defaults[1],
+            "host_apis": audio_diag.get("host_apis", []),
+            "input": audio_diag.get("input"),
+            "output": audio_diag.get("output"),
+            "full_duplex_host_api_match": audio_diag.get("full_duplex_host_api_match"),
+            "software_aec_enabled": config.runtime.audio.software_aec_enabled,
+            "software_ns_enabled": config.runtime.audio.software_ns_enabled,
         }
     except Exception as exc:
         audio = {"enumerated": False, "error_type": type(exc).__name__}

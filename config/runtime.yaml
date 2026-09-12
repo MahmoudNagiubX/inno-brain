@@ -6,8 +6,22 @@ development_platform: laptop
 
 audio:
   backend: sounddevice
-  input_device: null
-  output_device: null
+  # Resolve the live PortAudio index from these properties at runtime. Never
+  # persist a Windows device index; the S330 is the development mic and speaker.
+  input_device:
+    name_pattern: "Anker PowerConf S330"
+    host_api: "MME"
+    direction: capture
+    channels: 1
+    sample_rate_hz: 16000
+    sample_format: int16
+  output_device:
+    name_pattern: "Anker PowerConf S330"
+    host_api: "MME"
+    direction: playback
+    channels: 1
+    sample_rate_hz: 16000
+    sample_format: int16
   target_sample_rate_hz: 16000
   channels: 1
   frame_ms: 20

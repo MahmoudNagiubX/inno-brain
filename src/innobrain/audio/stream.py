@@ -1,9 +1,12 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import sounddevice as sd
+
+from .devices import get_default_device_indices, resolve_audio_device, validate_device_format
+from .models import AudioDevice, AudioDeviceDescriptor, AudioDeviceResolution
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +20,11 @@ class SoundDevicePCMStream:
         self,
         sample_rate_hz: int = 16000,
         frame_ms: int = 20,
-        device: int | str | None = None,
+        device: (
+            int | str | AudioDeviceDescriptor | AudioDeviceResolution | AudioDevice | None
+        ) = None,
         queue_max_chunks: int = 100,
+        input_stream_factory: Callable[..., Any] | None = None,
     ) -> None:
         if sample_rate_hz <= 0:
             raise ValueError("sample_rate_hz must be positive")
@@ -31,6 +37,7 @@ class SoundDevicePCMStream:
         self.frame_ms = frame_ms
         self.block_frames = round(sample_rate_hz * frame_ms / 1000)
         self.device = device
+        self._input_stream_factory = input_stream_factory or sd.RawInputStream
         self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(
             maxsize=queue_max_chunks
         )
@@ -54,10 +61,39 @@ class SoundDevicePCMStream:
         self._loop = asyncio.get_running_loop()
         self._accepting = True
         try:
-            self._stream = sd.RawInputStream(
+            resolved_index: int | None = None
+            if self.device is not None:
+                if isinstance(self.device, AudioDeviceResolution):
+                    resolved_index = self.device.device_index
+                elif isinstance(self.device, AudioDevice):
+                    resolved_index = self.device.index
+                elif isinstance(self.device, int):
+                    resolved_index = self.device
+                else:
+                    resolution = resolve_audio_device(
+                        self.device,
+                        direction="capture",
+                        sample_rate_hz=self.sample_rate_hz,
+                        channels=1,
+                        sample_format="int16",
+                    )
+                    resolved_index = resolution.device_index
+            else:
+                default_in, _ = get_default_device_indices()
+                if default_in is not None:
+                    validate_device_format(
+                        default_in,
+                        direction="capture",
+                        sample_rate_hz=self.sample_rate_hz,
+                        channels=1,
+                        sample_format="int16",
+                    )
+                    resolved_index = default_in
+
+            self._stream = self._input_stream_factory(
                 samplerate=self.sample_rate_hz,
                 blocksize=self.block_frames,
-                device=self.device,
+                device=resolved_index,
                 channels=1,
                 dtype="int16",
                 callback=self._callback,

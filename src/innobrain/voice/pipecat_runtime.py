@@ -42,7 +42,9 @@ class RealtimeTurnRuntime:
     ) -> None:
         self.config = config
         self.machine = machine or ConversationStateMachine()
-        self.playback = PlaybackController(SoundDevicePlaybackBackend())
+        self.playback = PlaybackController(
+            SoundDevicePlaybackBackend(device=config.audio.output_device)
+        )
         self.interruption = interruption or InterruptionController(
             self.machine,
             self.playback,

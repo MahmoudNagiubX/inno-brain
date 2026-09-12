@@ -1,6 +1,28 @@
 import pytest
 
+from innobrain.audio.models import (
+    AudioDevice,
+    AudioDeviceDescriptor,
+    AudioDeviceResolution,
+)
 from innobrain.audio.stream import SoundDevicePCMStream
+
+
+class FakeInputStream:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.started = False
+        self.stopped = False
+        self.closed = False
+
+    def start(self):
+        self.started = True
+
+    def stop(self):
+        self.stopped = True
+
+    def close(self):
+        self.closed = True
 
 
 @pytest.mark.asyncio
@@ -59,3 +81,51 @@ def test_sounddevice_callback_only_enqueues_raw_pcm_without_gate() -> None:
 
     assert len(loop.calls) == 1
     assert loop.calls[0][1] == b"\x01\x00"
+
+
+@pytest.mark.asyncio
+async def test_sounddevice_pcm_stream_receives_resolved_input_device_and_passes_to_factory(
+    monkeypatch,
+) -> None:
+    streams = []
+
+    def factory(**kwargs):
+        stream = FakeInputStream(**kwargs)
+        streams.append(stream)
+        return stream
+
+    # 1. With integer index
+    stream_idx = SoundDevicePCMStream(device=1, input_stream_factory=factory)
+    stream_idx.start()
+    assert streams[0].kwargs["device"] == 1
+    stream_idx.stop()
+
+    # 2. With AudioDeviceResolution
+    dummy_dev = AudioDevice(2, "Anker PowerConf S330", 1, 0, 16000.0, "MME", 0)
+    res = AudioDeviceResolution(
+        device_index=2,
+        device_name=dummy_dev.name,
+        host_api_name="MME",
+        direction="capture",
+        sample_rate_hz=16000,
+        channels=1,
+        sample_format="int16",
+        device=dummy_dev,
+    )
+    streams.clear()
+    stream_res = SoundDevicePCMStream(device=res, input_stream_factory=factory)
+    stream_res.start()
+    assert streams[0].kwargs["device"] == 2
+    stream_res.stop()
+
+    # 3. With descriptor resolved at start time
+    monkeypatch.setattr(
+        "innobrain.audio.stream.resolve_audio_device",
+        lambda *args, **kwargs: res,
+    )
+    streams.clear()
+    desc = AudioDeviceDescriptor(name_pattern="S330", host_api="MME")
+    stream_desc = SoundDevicePCMStream(device=desc, input_stream_factory=factory)
+    stream_desc.start()
+    assert streams[0].kwargs["device"] == 2
+    stream_desc.stop()

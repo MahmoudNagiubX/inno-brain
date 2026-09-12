@@ -1,10 +1,13 @@
 import asyncio
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import sounddevice as sd
+
+from innobrain.audio.devices import resolve_audio_device
+from innobrain.audio.models import AudioDevice, AudioDeviceResolution
 
 
 class PlaybackBackend(Protocol):
@@ -16,8 +19,28 @@ class PlaybackBackend(Protocol):
 
 
 class SoundDevicePlaybackBackend:
+    def __init__(self, device: Any = None) -> None:
+        self._device = device
+
     async def play(self, samples: np.ndarray, sample_rate_hz: int) -> None:
-        sd.play(samples, samplerate=sample_rate_hz, blocking=False)
+        kwargs: dict[str, Any] = {"samplerate": sample_rate_hz, "blocking": False}
+        if self._device is not None:
+            if isinstance(self._device, AudioDeviceResolution):
+                device_index = self._device.device_index
+            elif isinstance(self._device, AudioDevice):
+                device_index = self._device.index
+            elif isinstance(self._device, int):
+                device_index = self._device
+            else:
+                device_index = resolve_audio_device(
+                    self._device,
+                    direction="playback",
+                    sample_rate_hz=sample_rate_hz,
+                    channels=1,
+                    sample_format="int16",
+                ).device_index
+            kwargs["device"] = device_index
+        sd.play(samples, **kwargs)
         await asyncio.to_thread(sd.wait)
 
     async def stop(self) -> None:
