@@ -205,8 +205,7 @@ class GroundedOrchestrator:
                 "I couldn't find a confirmed answer to that in the event data."
                 if response_language is TurnLanguage.EN
                 else (
-                    "Ù…Ø´ Ù„Ø§Ù‚ÙŠ Ù…Ø¹Ù„ÙˆÙ…Ø© Ù…Ø¤ÙƒØ¯Ø© Ø¹Ù† Ø§Ù„Ø³Ø¤Ø§Ù„ Ø¯Ù‡ "
-                    "ÙÙŠ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù€event."
+                    "مش لاقي معلومة مؤكدة عن السؤال ده في بيانات الـevent."
                 )
             )
             result = BrainResult(

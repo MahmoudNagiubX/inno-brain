@@ -208,3 +208,24 @@ async def test_stream_answer_preserves_exact_and_no_evidence_fast_paths() -> Non
     assert result.route is AnswerRoute.NO_EVIDENCE
     assert spoken == [result.text]
     assert llm.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_arabic_no_evidence_uses_valid_arabic_without_mojibake() -> None:
+    orchestrator = GroundedOrchestrator(
+        FakeResolver(),
+        FakeRetriever(EvidencePack("q", ())),
+        llm_provider=FakeLLM(),
+    )
+    spoken: list[str] = []
+
+    result = await orchestrator.stream_answer(
+        "فين القاعة؟",
+        on_chunk=spoken.append,
+    )
+
+    expected = "مش لاقي معلومة مؤكدة عن السؤال ده في بيانات الـevent."
+    assert result.route is AnswerRoute.NO_EVIDENCE
+    assert expected in result.text
+    assert spoken == [result.text]
+    assert not any(marker in result.text for marker in ("Ù", "Ø", "Ã", "Â"))
