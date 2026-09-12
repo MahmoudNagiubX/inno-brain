@@ -9,6 +9,7 @@ class STTHealth:
     active_provider: str | None
     degraded: bool
     last_failure: str | None
+    fallback_available: bool = False
 
 
 class FailoverSTTProvider(STTProvider):
@@ -16,7 +17,7 @@ class FailoverSTTProvider(STTProvider):
 
     name = "speechmatics-deepgram-failover"
 
-    def __init__(self, primary: STTProvider, fallback: STTProvider) -> None:
+    def __init__(self, primary: STTProvider, fallback: STTProvider | None = None) -> None:
         self.primary = primary
         self.fallback = fallback
         self._active: STTProvider | None = None
@@ -33,6 +34,7 @@ class FailoverSTTProvider(STTProvider):
             active_provider=active_name,
             degraded=self._active is self.fallback or self._last_failure is not None,
             last_failure=self._last_failure,
+            fallback_available=self.fallback is not None,
         )
 
     async def start(self) -> None:
@@ -42,6 +44,9 @@ class FailoverSTTProvider(STTProvider):
         except Exception as exc:
             self._record_failure(self.primary, exc)
             await self._cleanup(self.primary)
+            if self.fallback is None:
+                self._active = None
+                raise ProviderUnavailable("no STT provider could start") from exc
             try:
                 await self._start_provider(self.fallback)
                 self._active = self.fallback
@@ -79,7 +84,7 @@ class FailoverSTTProvider(STTProvider):
             except Exception as exc:
                 failed = self._active
                 self._record_failure(failed, exc)
-                if failed is self.primary:
+                if failed is self.primary and self.fallback is not None:
                     await self._activate_fallback()
                     await self._active.stream_audio(pcm)
                     return
@@ -101,7 +106,7 @@ class FailoverSTTProvider(STTProvider):
                 self._audio_accepted = True
                 return
             await self._cleanup(failed)
-            self._fallback_pending = failed is self.primary
+            self._fallback_pending = failed is self.primary and self.fallback is not None
             self._turn_id = None
             self._audio_accepted = False
             raise ProviderUnavailable("current STT turn failed; audio was not replayed") from exc
@@ -123,7 +128,7 @@ class FailoverSTTProvider(STTProvider):
             failed = self._active
             self._record_failure(failed, exc)
             await self._cleanup(failed)
-            self._fallback_pending = failed is self.primary
+            self._fallback_pending = failed is self.primary and self.fallback is not None
             raise ProviderUnavailable("current STT turn failed; audio was not replayed") from exc
         finally:
             self._turn_id = None
@@ -138,6 +143,9 @@ class FailoverSTTProvider(STTProvider):
         self._fallback_pending = False
 
     async def _activate_fallback(self) -> None:
+        if self.fallback is None:
+            self._active = None
+            raise ProviderUnavailable("no fallback STT provider is configured")
         if self._active is self.fallback and id(self.fallback) in self._started:
             return
         if self._active is not None and id(self._active) in self._started:

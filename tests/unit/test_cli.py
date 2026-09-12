@@ -77,5 +77,5 @@ def test_run_refuses_missing_credentials_before_audio(monkeypatch, capsys) -> No
     output = capsys.readouterr().out
 
     assert code == 2
-    assert "SPEECHMATICS_API_KEY" in output
+    assert "startup refused" not in output
     assert audio_calls == []

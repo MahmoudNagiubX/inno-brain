@@ -7,6 +7,7 @@ from .contracts import (
     TranscriptEvent,
     TTSProvider,
 )
+from .registry import ProviderHealth
 
 __all__ = [
     "AudioChunk",
@@ -16,4 +17,5 @@ __all__ = [
     "STTProvider",
     "TTSProvider",
     "TranscriptEvent",
+    "ProviderHealth",
 ]

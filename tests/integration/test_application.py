@@ -71,6 +71,24 @@ def test_factory_assembles_one_real_internal_application_graph(tmp_path: Path) -
     app.event_context.close()
 
 
+def test_factory_constructs_without_optional_llm_or_tts_and_reports_stt_gap(
+    tmp_path: Path,
+) -> None:
+    app = build_application(
+        config=load_all_configs(Path.cwd()),
+        provider_bundle=ProviderBundle(None, None, None),
+        event_context=_context(tmp_path),
+        stream=BoundaryStream(),
+        playback=BoundaryPlayback(),
+    )
+
+    assert app.health.ready is False
+    assert app.health.providers["stt_available"] is False
+    assert app.health.providers["llm_available"] is False
+    assert app.health.providers["tts_available"] is False
+    app.event_context.close()
+
+
 @pytest.mark.asyncio
 async def test_startup_failure_rolls_back_and_stop_is_idempotent(tmp_path: Path) -> None:
     app = build_application(

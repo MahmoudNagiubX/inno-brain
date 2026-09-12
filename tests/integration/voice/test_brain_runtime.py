@@ -127,6 +127,28 @@ async def test_voice_brain_runtime_completes_synthetic_turn_and_interruption():
 
 
 @pytest.mark.asyncio
+async def test_missing_tts_keeps_text_result_available_without_committing_undelivered_voice():
+    orchestrator = FakeOrchestrator()
+    stt = FakeSTT()
+    runtime = VoiceBrainRuntime(
+        load_all_configs(REPOSITORY_ROOT).runtime,
+        stt=stt,
+        orchestrator=orchestrator,
+        tts=None,
+        playback=FakePlayback(),
+        stream=FakeStream(),
+    )
+
+    await runtime.handle_user_turn_started()
+    result = await runtime.handle_user_turn_stopped()
+
+    assert result is not None
+    assert runtime.last_result is result
+    assert orchestrator.committed == []
+    assert runtime.machine.state is ConversationState.LISTENING
+
+
+@pytest.mark.asyncio
 async def test_synthetic_turn_emits_required_provider_route_state_and_timing_events():
     sink = CollectingSink()
     stt = FakeSTT()

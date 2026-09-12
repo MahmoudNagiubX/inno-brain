@@ -5,6 +5,7 @@ from typing import Any
 
 from innobrain.config import RuntimeConfig
 from innobrain.providers import STTProvider, TTSProvider
+from innobrain.providers.errors import ProviderUnavailable
 from innobrain.telemetry.runtime_events import (
     LoggingRuntimeEventSink,
     RuntimeEventSink,
@@ -29,9 +30,9 @@ class VoiceBrainRuntime:
         self,
         config: RuntimeConfig,
         *,
-        stt: STTProvider,
+        stt: STTProvider | None,
         orchestrator: GroundedOrchestrator,
-        tts: TTSProvider,
+        tts: TTSProvider | None,
         playback: PCMStreamPlaybackController,
         stream: object | None = None,
         machine: ConversationStateMachine | None = None,
@@ -97,6 +98,8 @@ class VoiceBrainRuntime:
         if self._started:
             return
         self._closed = False
+        if self.stt is None:
+            raise ProviderUnavailable("STT capability is unavailable")
         await self.stt.start()
         await self.turn_runtime.start()
         self._started = True
@@ -112,7 +115,8 @@ class VoiceBrainRuntime:
                 turn_task.cancel()
                 await self._await_cancelled_task(turn_task)
             await self.turn_runtime.stop()
-            await self.stt.stop()
+            if self.stt is not None:
+                await self.stt.stop()
             await self.playback.cancel()
         finally:
             self._active_turn_id = None
@@ -173,6 +177,8 @@ class VoiceBrainRuntime:
         return decision
 
     async def handle_user_turn_started(self, *, manage_attention: bool = False) -> int:
+        if self.stt is None:
+            raise ProviderUnavailable("STT capability is unavailable")
         self._attention_turn_managed = manage_attention and self.attention is not None
         if self._attention_turn_managed and not getattr(
             self.attention, "is_utterance_in_progress", False
@@ -262,6 +268,13 @@ class VoiceBrainRuntime:
                 llm_provider=result.provider,
                 timing_marker="brain_complete",
             )
+            if self.tts is None:
+                self.last_result = result
+                self._emit("tts_unavailable", turn_id=turn_id)
+                self.machine.transition(ConversationState.LISTENING, "tts_unavailable")
+                if self.attention is not None:
+                    self.attention.on_reply_completed()
+                return result
             chunker = SentenceChunker()
             sentences = chunker.feed(result.text) + chunker.flush()
             started_playback = False
@@ -385,6 +398,8 @@ class VoiceBrainRuntime:
                 self.machine.transition(ConversationState.LISTENING, "response_fault_recovered")
 
     async def _on_audio_chunk(self, pcm: bytes) -> None:
+        if self.stt is None:
+            raise ProviderUnavailable("STT capability is unavailable")
         await self.stt.stream_audio(pcm)
 
     async def _on_turn_event(self, event: TurnEvent) -> None:

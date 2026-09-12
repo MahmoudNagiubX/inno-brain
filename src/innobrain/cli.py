@@ -130,6 +130,7 @@ def offline_check(
         item.name: item.configured
         for item in ProviderRegistry(env).availability()
     }
+    provider_health = ProviderRegistry(env).capability_health(config)
     try:
         assets = resolve_e5_assets(download=False)
         e5_assets = assets.model_path.is_file() and assets.tokenizer_path.is_file()
@@ -160,7 +161,7 @@ def offline_check(
     except Exception as exc:
         audio = {"enumerated": False, "error_type": type(exc).__name__}
     active = _active_event(root, config.runtime.events.data_root)
-    graph_ready = active is not None and e5_assets and all(credentials.values())
+    graph_ready = active is not None and e5_assets and provider_health.stt_available
 
     wake_check_res = offline_wake_check(root, environment=environment)
 
@@ -168,6 +169,7 @@ def offline_check(
         "status": "ready" if graph_ready else "not_ready",
         "active_event": active,
         "provider_credentials": credentials,
+        "provider_capabilities": provider_health.to_dict(),
         "e5_assets_present": e5_assets,
         "audio": audio,
         "wake": {

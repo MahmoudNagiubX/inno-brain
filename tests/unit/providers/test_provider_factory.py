@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 from innobrain.config.loader import load_all_configs
-from innobrain.providers.errors import MissingProviderCredential
 from innobrain.providers.registry import build_provider_bundle
 
 
@@ -53,8 +52,72 @@ def test_provider_factory_follows_config_and_only_constructs(tmp_path) -> None:
 def test_provider_factory_missing_secret_names_variable_without_value() -> None:
     config = load_all_configs(Path.cwd())
 
-    with pytest.raises(MissingProviderCredential) as caught:
-        build_provider_bundle(config, environment={"SPEECHMATICS_API_KEY": "do-not-print"})
+    bundle = build_provider_bundle(
+        config,
+        environment={"SPEECHMATICS_API_KEY": "do-not-print"},
+        constructors=_constructors([]),
+    )
 
-    assert "DEEPGRAM_API_KEY" in str(caught.value)
-    assert "do-not-print" not in str(caught.value)
+    assert bundle.stt is not None
+    assert bundle.stt.primary.name == "speechmatics"
+    assert bundle.stt.fallback is None
+    assert bundle.llm is None
+    assert bundle.tts is None
+
+
+@pytest.mark.parametrize(
+    ("environment", "expected_primary", "expected_fallback"),
+    [
+        ({"SPEECHMATICS_API_KEY": "speech"}, "speechmatics", None),
+        ({"DEEPGRAM_API_KEY": "deep"}, "deepgram", None),
+        (
+            {"SPEECHMATICS_API_KEY": "speech", "DEEPGRAM_API_KEY": "deep"},
+            "speechmatics",
+            "deepgram",
+        ),
+    ],
+)
+def test_provider_factory_selects_available_stt_capabilities(
+    environment, expected_primary, expected_fallback
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+    bundle = build_provider_bundle(
+        load_all_configs(Path.cwd()),
+        environment=environment,
+        constructors=_constructors(calls),
+    )
+
+    assert bundle.stt is not None
+    assert bundle.stt.primary.name == expected_primary
+    assert (bundle.stt.fallback.name if bundle.stt.fallback else None) == expected_fallback
+    assert bundle.health is not None
+    assert bundle.health.selected_stt == expected_primary
+    assert bundle.health.fallback_stt == expected_fallback
+
+
+def test_provider_factory_no_stt_is_constructable_but_not_ready() -> None:
+    bundle = build_provider_bundle(
+        load_all_configs(Path.cwd()),
+        environment={},
+        constructors=_constructors([]),
+    )
+
+    assert bundle.stt is None
+    assert bundle.llm is None
+    assert bundle.tts is None
+    assert bundle.health.stt_available is False
+    assert bundle.health.llm_available is False
+    assert bundle.health.tts_available is False
+
+
+def test_provider_factory_missing_optional_providers_does_not_block_stt() -> None:
+    bundle = build_provider_bundle(
+        load_all_configs(Path.cwd()),
+        environment={"SPEECHMATICS_API_KEY": "speech"},
+        constructors=_constructors([]),
+    )
+
+    assert bundle.stt is not None
+    assert bundle.health.stt_available is True
+    assert bundle.health.llm_available is False
+    assert bundle.health.tts_available is False

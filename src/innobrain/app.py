@@ -43,6 +43,7 @@ class ApplicationHealth:
     attention: dict[str, Any] | None
     wake: dict[str, Any] | None
     audio: dict[str, Any] | None
+    providers: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +56,7 @@ class ApplicationHealth:
             "attention": self.attention,
             "wake": self.wake,
             "audio": self.audio,
+            "providers": self.providers,
         }
 
 
@@ -99,14 +101,18 @@ class InnoBrainApplication:
 
         active_ctx = self.context_switcher.current
         active_event_id = active_ctx.record.event_id if active_ctx is not None else None
+        provider_health = self.providers.capability_health()
+        provider_info = provider_health.to_dict()
 
         ready = (
             (att_health is None or att_health.ready)
             and (wake_health is None or wake_health.ready)
+            and provider_health.stt_available
         )
         degraded = (
             (att_health is not None and att_health.degraded)
             or (wake_health is not None and wake_health.degraded)
+            or provider_health.degraded
         )
 
         return ApplicationHealth(
@@ -119,6 +125,7 @@ class InnoBrainApplication:
             attention=dataclasses.asdict(att_health) if att_health is not None else None,
             wake=dataclasses.asdict(wake_health) if wake_health is not None else None,
             audio=dataclasses.asdict(audio_stats) if audio_stats is not None else None,
+            providers=provider_info,
         )
 
     def activate_event(
